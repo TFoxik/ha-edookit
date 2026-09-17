@@ -2,18 +2,17 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from pyedookit import EdookitClient
+from pyedookit import Session
 
-from .const import DOMAIN
-from .coordinator import EdookitCoordinator, session_from_entry_data
+from .const import CONF_SESSION, DOMAIN
+from .coordinator import EdookitCoordinator
 
 PLATFORMS = ["calendar", "sensor", "event"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    session = session_from_entry_data(entry.data)
-    client = EdookitClient(session)
-    coordinator = EdookitCoordinator(hass, entry, client)
+    session = Session.from_json(entry.data[CONF_SESSION])
+    coordinator = EdookitCoordinator(hass, entry, session)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator

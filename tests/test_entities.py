@@ -9,7 +9,7 @@ from homeassistant.util import dt as dt_util
 from pyedookit import Lesson, Session
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.edookit.const import DOMAIN
+from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 
 FAKE_SESSION = Session(
     school="zs-example",
@@ -22,7 +22,7 @@ FAKE_SESSION = Session(
 def _entry(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={"school": "zs-example", "session": FAKE_SESSION.to_json()},
+        data={CONF_SCHOOL: "zs-example", CONF_SESSION: FAKE_SESSION.to_json()},
     )
     entry.add_to_hass(hass)
     return entry
@@ -30,7 +30,7 @@ def _entry(hass: HomeAssistant) -> MockConfigEntry:
 
 async def test_sensors_and_calendar_reflect_fetched_lessons(hass: HomeAssistant) -> None:
     # Lesson.start/end are naive wall-clock times as the portal parser would
-    # produce them - here, built in the same timezone entity_helpers.localize()
+    # produce them - here, built in the same timezone entity_helpers.to_local()
     # will reattach (hass.config.time_zone), not this machine's local zone.
     now = (
         dt_util.now().replace(minute=0, second=0, microsecond=0, tzinfo=None)

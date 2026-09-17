@@ -6,9 +6,9 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 
-TO_REDACT = {"session", "username", "password"}
+TO_REDACT = {CONF_SESSION, CONF_SCHOOL, "username", "password"}
 
 
 async def async_get_config_entry_diagnostics(
