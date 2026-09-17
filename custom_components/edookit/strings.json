@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Edookit",
+        "data": {
+          "school": "School subdomain (the part before .edookit.net)",
+          "username": "Plus4U username or email",
+          "password": "Plus4U password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate with Edookit",
+        "description": "Your Edookit session for {school} could not be renewed automatically. Please sign in again.",
+        "data": {
+          "username": "Plus4U username or email",
+          "password": "Plus4U password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password."
+    },
+    "abort": {
+      "already_configured": "This school and account are already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_lesson": { "name": "Next lesson" },
+      "lessons_today": { "name": "Lessons today" }
+    },
+    "calendar": {
+      "timetable": { "name": "Timetable" }
+    },
+    "event": {
+      "timetable_changed": { "name": "Timetable changed" }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Připojit k Edookitu",
+        "data": {
+          "school": "Subdoména školy (část před .edookit.net)",
+          "username": "Uživatelské jméno nebo e-mail Plus4U",
+          "password": "Heslo Plus4U"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Znovu se přihlásit k Edookitu",
+        "description": "Relaci Edookit pro {school} se nepodařilo automaticky obnovit. Přihlaste se prosím znovu.",
+        "data": {
+          "username": "Uživatelské jméno nebo e-mail Plus4U",
+          "password": "Heslo Plus4U"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Neplatné uživatelské jméno nebo heslo."
+    },
+    "abort": {
+      "already_configured": "Tato škola a účet jsou již nakonfigurovány.",
+      "reauth_successful": "Opětovné přihlášení proběhlo úspěšně."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_lesson": { "name": "Další hodina" },
+      "lessons_today": { "name": "Hodiny dnes" }
+    },
+    "calendar": {
+      "timetable": { "name": "Rozvrh" }
+    },
+    "event": {
+      "timetable_changed": { "name": "Změna rozvrhu" }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "domain": "edookit",
+  "name": "Edookit",
+  "codeowners": ["@tfox"],
+  "config_flow": true,
+  "documentation": "https://github.com/tfox/ha-edookit",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/tfox/ha-edookit/issues",
+  "requirements": ["pyedookit==0.1.0"],
+  "version": "0.1.0"
+}
