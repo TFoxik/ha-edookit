@@ -6,15 +6,24 @@ school parent portal. Built on top of
 Plus4U (OIDC) and scrapes the portal since Edookit's own REST API is only
 enabled per-school by an administrator.
 
-## Status: v0.1.0 - timetable only
+## Status: v0.1.0 - timetable only, current week
 
-- **Calendar** (`calendar.timetable`): this week's and next week's lessons,
-  with cancelled/changed lessons flagged in the summary.
+Verified end-to-end against a real school portal.
+
+- **Calendar** (`calendar.timetable`): this week's lessons, with
+  cancelled/changed lessons flagged in the summary.
 - **Sensors**: `sensor.next_lesson` (state = subject, attributes for start,
   end, room, teacher), `sensor.lessons_today` (count).
 - **Event** (`event.timetable_changed`): fires `lesson_cancelled` or
   `lesson_changed` the first time a lesson is seen in that state, so an
   automation can trigger once per disruption rather than once per poll.
+
+Only the current week is fetched. pyedookit's real week-navigation
+parameter for "next week" hasn't been confirmed yet (see its README) -
+since a school's weekly timetable is usually the same all year, this is
+normally not a practical limitation. Cancelled/changed lesson detection is
+also unverified against real data yet, so the event entity and the
+cancelled/changed flags won't fire until that's confirmed.
 
 Not yet implemented: grades, homework/exams, the updates inbox, attendance,
 payments, and login via Google or a local Edookit account (only Plus4U is

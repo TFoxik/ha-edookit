@@ -68,7 +68,7 @@ async def test_successful_refresh_retries_the_fetch(hass: HomeAssistant) -> None
     async def flaky_get_timetable(self: object, week_offset: int) -> list[Lesson]:
         nonlocal calls
         calls += 1
-        if calls <= 2:
+        if calls == 1:
             raise SessionExpired("expired")
         return [lesson]
 
@@ -84,4 +84,4 @@ async def test_successful_refresh_retries_the_fetch(hass: HomeAssistant) -> None
     ):
         data = await coordinator._async_update_data()
 
-    assert data.lessons == [lesson, lesson]
+    assert data.lessons == [lesson]

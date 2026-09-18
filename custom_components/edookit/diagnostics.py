@@ -18,6 +18,5 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry_data": async_redact_data(dict(entry.data), TO_REDACT),
         "last_update_success": coordinator.last_update_success,
-        "current_week_lesson_count": len(coordinator.data.current_week),
-        "next_week_lesson_count": len(coordinator.data.next_week),
+        "lesson_count": len(coordinator.data.lessons),
     }

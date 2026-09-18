@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,10 +18,10 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class EdookitData:
-    current_week: list[Lesson] = field(default_factory=list)
-    next_week: list[Lesson] = field(default_factory=list)
-    # current_week + next_week, sorted by start - entities read this instead
-    # of each re-concatenating and re-sorting the two lists themselves.
+    # week_offset=1 ("next week") is not fetched: the portal accepts the
+    # parameter but returns the same week's data back, so it can't be
+    # trusted yet - see pyedookit's README for the open question. Only the
+    # current week is fetched until that's sorted out.
     lessons: list[Lesson] = field(default_factory=list)
     # Lessons that became changed/cancelled since the previous poll - what
     # the event entity fires on, so a single automation trigger works for
@@ -59,29 +58,18 @@ class EdookitCoordinator(DataUpdateCoordinator[EdookitData]):
                 raise UpdateFailed("edookit session expired again right after refresh") from err
 
     async def _fetch(self) -> EdookitData:
-        current_week, next_week = await asyncio.gather(
-            self._client.get_timetable(week_offset=0),
-            self._client.get_timetable(week_offset=1),
-        )
-        all_lessons = sorted(current_week + next_week, key=lambda ls: ls.start)
+        lessons = sorted(await self._client.get_timetable(week_offset=0), key=lambda ls: ls.start)
 
         disrupted_now = {
             _disruption_key(lesson)
-            for lesson in all_lessons
+            for lesson in lessons
             if lesson.is_changed or lesson.is_cancelled
         }
         new_keys = disrupted_now - self._previously_disrupted
-        newly_disrupted = [
-            lesson for lesson in all_lessons if _disruption_key(lesson) in new_keys
-        ]
+        newly_disrupted = [lesson for lesson in lessons if _disruption_key(lesson) in new_keys]
         self._previously_disrupted = disrupted_now
 
-        return EdookitData(
-            current_week=current_week,
-            next_week=next_week,
-            lessons=all_lessons,
-            newly_disrupted=newly_disrupted,
-        )
+        return EdookitData(lessons=lessons, newly_disrupted=newly_disrupted)
 
     async def _refresh_or_reauth(self) -> None:
         # AuthError raised in here must not be caught by a sibling
