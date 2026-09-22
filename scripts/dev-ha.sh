@@ -35,7 +35,23 @@ setup() {
 
   if [[ ! -f "$CONFIG/configuration.yaml" ]]; then
     cat > "$CONFIG/configuration.yaml" <<'EOF'
-default_config:
+# default_config minus bluetooth: macOS kills a Home Assistant started
+# without Bluetooth permission (e.g. from the Claude desktop app) as soon as
+# the bluetooth integration touches CoreBluetooth.
+frontend:
+config:
+history:
+logbook:
+energy:
+sun:
+zone:
+my:
+backup:
+conversation:
+media_source:
+image_upload:
+webhook:
+mobile_app:
 
 logger:
   default: info
