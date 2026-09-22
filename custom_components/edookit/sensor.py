@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .coordinator import EdookitConfigEntry
+from .data import EdookitConfigEntry
 from .entity_helpers import EdookitEntity, lesson_attributes, next_lesson
 
 PARALLEL_UPDATES = 0
@@ -14,7 +14,7 @@ PARALLEL_UPDATES = 0
 async def async_setup_entry(
     hass: HomeAssistant, entry: EdookitConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = entry.runtime_data.timetable
     async_add_entities(
         [
             EdookitNextLessonSensor(coordinator, entry),

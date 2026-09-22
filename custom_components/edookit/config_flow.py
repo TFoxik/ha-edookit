@@ -10,7 +10,7 @@ from pyedookit import AuthError, EdookitConnectionError, Session
 from pyedookit import login as edookit_login
 
 from .const import CONF_SCHOOL, CONF_SESSION, DOMAIN
-from .coordinator import get_http_session
+from .session_manager import get_http_session
 
 _LOGGER = logging.getLogger(__name__)
 

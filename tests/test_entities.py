@@ -101,7 +101,7 @@ async def test_calendar_returns_lessons_overlapping_the_requested_range(
 async def test_event_fires_once_per_newly_cancelled_lesson(hass: HomeAssistant) -> None:
     entry = await _setup(hass, [])
     cancelled = _lesson_in(2, is_cancelled=True)
-    coordinator = entry.runtime_data
+    coordinator = entry.runtime_data.timetable
 
     with patch(
         "pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[cancelled])

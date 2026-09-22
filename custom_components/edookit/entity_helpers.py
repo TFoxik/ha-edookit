@@ -8,7 +8,8 @@ from homeassistant.util import dt as dt_util
 from pyedookit import Lesson
 
 from .const import CONF_SCHOOL, DOMAIN
-from .coordinator import EdookitConfigEntry, EdookitCoordinator
+from .coordinator import EdookitCoordinator
+from .data import EdookitConfigEntry
 
 
 class EdookitEntity(CoordinatorEntity[EdookitCoordinator]):

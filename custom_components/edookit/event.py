@@ -4,7 +4,7 @@ from homeassistant.components.event import EventEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .coordinator import EdookitConfigEntry
+from .data import EdookitConfigEntry
 from .entity_helpers import EdookitEntity, lesson_attributes, lesson_summary
 
 PARALLEL_UPDATES = 0
@@ -13,7 +13,7 @@ PARALLEL_UPDATES = 0
 async def async_setup_entry(
     hass: HomeAssistant, entry: EdookitConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    async_add_entities([EdookitTimetableChangedEvent(entry.runtime_data, entry)])
+    async_add_entities([EdookitTimetableChangedEvent(entry.runtime_data.timetable, entry)])
 
 
 class EdookitTimetableChangedEvent(EdookitEntity, EventEntity):
