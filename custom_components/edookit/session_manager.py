@@ -33,8 +33,11 @@ def get_http_session(hass: HomeAssistant) -> aiohttp.ClientSession:
     session is unsuitable: its jar would collect edookit/Plus4U cookies and
     resend them alongside the manual ones. Without a jar the session holds
     no per-account state, so every entry and config flow can share it.
+
+    HA closes a session created during an entry's setup when that entry
+    unloads, so a closed cached session is replaced rather than reused.
     """
-    if (http := hass.data.get(_HTTP_SESSION)) is None:
+    if (http := hass.data.get(_HTTP_SESSION)) is None or http.closed:
         http = hass.data[_HTTP_SESSION] = async_create_clientsession(
             hass, cookie_jar=aiohttp.DummyCookieJar()
         )

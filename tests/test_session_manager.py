@@ -12,7 +12,7 @@ from pyedookit import AuthError, EdookitConnectionError, ParseError, Session, Se
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
-from custom_components.edookit.session_manager import EdookitSessionManager
+from custom_components.edookit.session_manager import EdookitSessionManager, get_http_session
 
 
 def _session(cookie: str, *, expired: bool = False) -> Session:
@@ -152,3 +152,19 @@ async def test_library_errors_become_translated_update_failed(
 
 async def _async(value):
     return value
+
+
+async def test_http_session_is_recreated_after_its_creator_closed_it(hass: HomeAssistant) -> None:
+    # HA ties a session made inside a config entry's setup to that entry and
+    # closes it when the entry unloads (e.g. a failed setup before reauth).
+    with patch(
+        "custom_components.edookit.session_manager.async_create_clientsession",
+        side_effect=lambda *args, **kwargs: MagicMock(closed=False),
+    ):
+        first = get_http_session(hass)
+        first.closed = True
+
+        second = get_http_session(hass)
+
+    assert second is not first
+    assert not second.closed
