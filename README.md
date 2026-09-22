@@ -2,9 +2,9 @@
 
 An unofficial custom integration that brings your child's school timetable
 from [Edookit](https://edookit.com), the parent portal used by Czech
-schools, into Home Assistant. It adds a calendar of the week's lessons,
-sensors for the next lesson and today's lesson count, and an event entity
-that fires when a lesson is cancelled or changed.
+schools, into Home Assistant. It adds calendars for the week's lessons and for school events, sensors for the next lesson,
+today's lesson count and payments due, and an event entity that fires when a lesson is
+cancelled or changed.
 
 Edookit's official REST API only works if a school administrator enables
 it, so this integration signs in the way a parent does, through Plus4U,
@@ -31,6 +31,8 @@ these entities:
 | Next lesson (sensor) | `sensor.edookit_zs_example_next_lesson` | subject name | `start`, `end`, `room`, `teacher` |
 | Lessons today (sensor) | `sensor.edookit_zs_example_lessons_today` | number of lessons not cancelled | |
 | Timetable changed (event) | `event.edookit_zs_example_timetable_changed` | time of last event | `event_type` (`lesson_cancelled` / `lesson_changed`), `subject`, `start`, `room`, `teacher` |
+| School events (calendar) | `calendar.edookit_zs_example_school_events` | on during an event | school trips, holidays and events from "Mé budoucí události"; all-day events span whole days |
+| Payments due (sensor) | `sensor.edookit_zs_example_payments_due` | amount still to pay, in CZK | `paid`, `overpaid`, `unpaid_requests` (title and amount of each unpaid request) |
 
 Lessons that were already cancelled when the integration started don't
 fire the event; it fires once for each lesson that becomes cancelled or
@@ -64,9 +66,18 @@ Go to **Settings → Devices & services → Add integration → Edookit**:
 To follow two children with separate accounts, add the integration once
 per account.
 
+### Options
+
+**Settings → Devices & services → Edookit → Configure**:
+
+| Option | Default | Description |
+|---|---|---|
+| Save pages with new content for development | off | Watches the homework, tests, inbox and consents pages, which aren't supported yet, and saves a copy to `config/edookit_captures/` when their content changes. You get a notification when that happens; sharing the file (with names removed) lets support for that page be built. |
+
 ## How data is updated
 
-- The timetable is polled every **30 minutes**.
+- The timetable is polled every **30 minutes**; school events and payments every **3 hours**.
+  If the events or payments page can't be read, only those entities become unavailable.
 - Edookit's own session lasts about 30–60 minutes. The integration renews it
   silently using the Plus4U sign-in cookie, which lasts about **19 days**.
 - When that cookie expires, Home Assistant shows a **reauthentication**
@@ -115,16 +126,38 @@ automation:
             in {{ state_attr('sensor.edookit_zs_example_next_lesson', 'room') }}.
 ```
 
+Notify when the school asks for money:
+
+```yaml
+automation:
+  - alias: "School: payment due"
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.edookit_zs_example_payments_due
+        above: 0
+    actions:
+      - action: notify.mobile_app_my_phone
+        data:
+          message: >-
+            Edookit: {{ states('sensor.edookit_zs_example_payments_due') }} Kč to pay
+            ({{ state_attr('sensor.edookit_zs_example_payments_due', 'unpaid_requests')
+            | map(attribute='title') | join(', ') }}).
+```
+
 ## Known limitations
 
-- **Timetable only.** Grades, homework and exams, the messages inbox,
-  attendance and payments are not supported yet.
+- **Timetable, school events and payments.** Grades, attendance, library and the rest of the
+  portal are not supported. Homework, tests, the inbox and consents can be captured for future
+  support (see Options), but have no entities yet.
 - **Current week only.** The portal's "next week" navigation hasn't been
   worked out yet. A school's timetable is usually the same every week, so
   this rarely matters.
 - **Cancelled/changed lessons are not verified against real data.** The
   markup for them hasn't been seen on a real portal yet, so the event entity
   and the `(zrušeno)`/`(změna)` markers may not fire until it has.
+- **Unpaid payments are not verified against real data.** Only paid requests have been seen; the
+  sensor's state comes from the portal's own "remaining" total, so it is right even if an unpaid
+  request isn't listed in `unpaid_requests`.
 - **Plus4U sign-in only.** Google and local Edookit accounts are not
   supported.
 - **It reads the portal's web pages.** When Edookit changes its pages the
