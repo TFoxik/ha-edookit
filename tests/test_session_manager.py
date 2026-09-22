@@ -155,22 +155,6 @@ async def _async(value):
     return value
 
 
-async def test_http_session_is_recreated_after_its_creator_closed_it(hass: HomeAssistant) -> None:
-    # HA ties a session made inside a config entry's setup to that entry and
-    # closes it when the entry unloads (e.g. a failed setup before reauth).
-    with patch(
-        "custom_components.edookit.session_manager.async_create_clientsession",
-        side_effect=lambda *args, **kwargs: MagicMock(closed=False),
-    ):
-        first = get_http_session(hass)
-        first.closed = True
-
-        second = get_http_session(hass)
-
-    assert second is not first
-    assert not second.closed
-
-
 async def test_http_session_outlives_entry_unloads_and_is_released_on_shutdown(
     hass: HomeAssistant,
 ) -> None:

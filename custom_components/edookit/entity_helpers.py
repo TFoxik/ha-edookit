@@ -32,6 +32,12 @@ class EdookitEntity[CoordinatorT: DataUpdateCoordinator[Any]](CoordinatorEntity[
             configuration_url=f"https://{school}.edookit.net",
         )
 
+    @property
+    def available(self) -> bool:
+        # The school coordinator's first refresh may fail without failing
+        # setup, which leaves its data None.
+        return super().available and self.coordinator.data is not None
+
 
 def lesson_summary(lesson: Lesson) -> str:
     if lesson.is_cancelled:

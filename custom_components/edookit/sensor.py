@@ -64,9 +64,7 @@ class EdookitPaymentsDueSensor(EdookitEntity[EdookitSchoolCoordinator], SensorEn
     _attr_device_class = SensorDeviceClass.MONETARY
 
     @property
-    def native_value(self) -> Decimal | None:
-        if self.coordinator.data is None:
-            return None
+    def native_value(self) -> Decimal:
         return self.coordinator.data.payments.remaining
 
     @property
@@ -77,8 +75,6 @@ class EdookitPaymentsDueSensor(EdookitEntity[EdookitSchoolCoordinator], SensorEn
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        if self.coordinator.data is None:
-            return {}
         payments = self.coordinator.data.payments
         return {
             "paid": float(payments.paid),

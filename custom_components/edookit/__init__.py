@@ -35,7 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     await school.async_refresh()
 
     entry.runtime_data = EdookitRuntimeData(
-        session=session, timetable=timetable, school=school, capture_enabled=capture_enabled
+        timetable=timetable, school=school, capture_enabled=capture_enabled
     )
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

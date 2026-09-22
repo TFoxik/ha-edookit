@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
-from pyedookit import CAPTURE_PAGES, EdookitClient, content_fingerprint, has_portal_content
+from pyedookit import CAPTURE_PAGES, EdookitClient, content_fingerprint
 
 from .const import DOMAIN
 from .session_manager import EdookitSessionManager
@@ -55,20 +55,21 @@ class PageCapture:
         captured: list[str] = []
 
         for name in CAPTURE_PAGES:
+            if name in state["baselines"] and state["captured_on"].get(name) == today:
+                continue
             try:
                 html = await session.async_call(_page_fetcher(name))
             except UpdateFailed as err:
                 _LOGGER.warning("Could not fetch %s for capture: %s", name, err)
                 continue
-            if not has_portal_content(html):
+            if (fingerprint := content_fingerprint(html)) is None:
                 _LOGGER.debug("Skipping %s for capture: not a portal page", name)
                 continue
-            fingerprint = content_fingerprint(html)
             baseline = state["baselines"].get(name)
             if baseline is None:
                 state["baselines"][name] = fingerprint
                 continue
-            if fingerprint == baseline or state["captured_on"].get(name) == today:
+            if fingerprint == baseline:
                 continue
             path = self._directory / f"{name}-{now:%Y%m%d-%H%M}.html"
             try:

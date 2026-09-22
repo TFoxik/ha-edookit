@@ -39,17 +39,17 @@ def get_http_session(hass: HomeAssistant) -> aiohttp.ClientSession:
     entry happened to be setting up and release it when that one entry
     unloads; instead it is released once, on shutdown.
     """
-    if (http := hass.data.get(_HTTP_SESSION)) is None or http.closed:
-        http = hass.data[_HTTP_SESSION] = async_create_clientsession(
-            hass, auto_cleanup=False, cookie_jar=aiohttp.DummyCookieJar()
-        )
-        session = http
+    if (cached := hass.data.get(_HTTP_SESSION)) is not None:
+        return cached
+    http = hass.data[_HTTP_SESSION] = async_create_clientsession(
+        hass, auto_cleanup=False, cookie_jar=aiohttp.DummyCookieJar()
+    )
 
-        @callback
-        def _release(_: Event) -> None:
-            session.detach()
+    @callback
+    def _release(_: Event) -> None:
+        http.detach()
 
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, _release)
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, _release)
     return http
 
 
