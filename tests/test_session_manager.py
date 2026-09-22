@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -168,3 +169,21 @@ async def test_http_session_is_recreated_after_its_creator_closed_it(hass: HomeA
 
     assert second is not first
     assert not second.closed
+
+
+async def test_http_session_outlives_entry_unloads_and_is_released_on_shutdown(
+    hass: HomeAssistant,
+) -> None:
+    # With HA's auto_cleanup the session would be tied to whichever entry was
+    # being set up, and its unload would break every other entry's session.
+    create = MagicMock(side_effect=lambda *args, **kwargs: MagicMock(closed=False))
+    with patch("custom_components.edookit.session_manager.async_create_clientsession", create):
+        http = get_http_session(hass)
+
+    assert create.call_args.kwargs["auto_cleanup"] is False
+    http.detach.assert_not_called()
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_CLOSE)
+    await hass.async_block_till_done()
+
+    http.detach.assert_called_once()

@@ -83,7 +83,7 @@
       "message": "Nepodařilo se spojit s Edookitem: {error}"
     },
     "parse_error": {
-      "message": "Stránku s rozvrhem se nepodařilo přečíst, portál se možná změnil: {error}"
+      "message": "Stránku Edookitu se nepodařilo přečíst, portál se možná změnil: {error}"
     }
   }
 }

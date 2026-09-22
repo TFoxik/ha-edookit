@@ -4,7 +4,8 @@ import asyncio
 from collections.abc import Awaitable, Callable
 
 import aiohttp
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -34,13 +35,21 @@ def get_http_session(hass: HomeAssistant) -> aiohttp.ClientSession:
     resend them alongside the manual ones. Without a jar the session holds
     no per-account state, so every entry and config flow can share it.
 
-    HA closes a session created during an entry's setup when that entry
-    unloads, so a closed cached session is replaced rather than reused.
+    It is created without HA's auto_cleanup, which would tie it to whichever
+    entry happened to be setting up and release it when that one entry
+    unloads; instead it is released once, on shutdown.
     """
     if (http := hass.data.get(_HTTP_SESSION)) is None or http.closed:
         http = hass.data[_HTTP_SESSION] = async_create_clientsession(
-            hass, cookie_jar=aiohttp.DummyCookieJar()
+            hass, auto_cleanup=False, cookie_jar=aiohttp.DummyCookieJar()
         )
+        session = http
+
+        @callback
+        def _release(_: Event) -> None:
+            session.detach()
+
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, _release)
     return http
 
 

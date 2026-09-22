@@ -83,7 +83,7 @@
       "message": "Could not reach Edookit: {error}"
     },
     "parse_error": {
-      "message": "The Edookit timetable page could not be read, the portal may have changed: {error}"
+      "message": "An Edookit page could not be read, the portal may have changed: {error}"
     }
   }
 }

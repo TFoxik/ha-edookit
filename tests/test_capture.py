@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
@@ -97,3 +98,44 @@ async def test_one_failing_page_does_not_stop_the_others(
     await capture.async_run(FlakySession(_pages()))
 
     assert await capture.async_run(FlakySession(_pages(assignments=WITH_ITEM))) == ["assignments"]
+
+
+async def test_failed_write_does_not_raise_or_stop_other_pages(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    capture = PageCapture(hass, "entry1", tmp_path)
+    await capture.async_run(FakeSession(_pages()))
+    changed = {name: WITH_ITEM for name in ("assignments", "exams", "inbox", "consents")}
+
+    def flaky_write(path: Path, html: str) -> None:
+        if path.name.startswith("assignments"):
+            raise OSError("disk full")
+        path.write_text(html)
+
+    with patch("custom_components.edookit.capture._write", side_effect=flaky_write):
+        captured = await capture.async_run(FakeSession(changed))
+
+    assert captured == ["exams", "inbox", "consents"]
+
+
+async def test_error_pages_are_not_captured_and_keep_the_baseline(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    # A 5xx or maintenance page has no portal content section.
+    maintenance = "<html><body><h1>Probíhá údržba</h1></body></html>"
+    capture = PageCapture(hass, "entry1", tmp_path)
+    await capture.async_run(FakeSession(_pages()))
+
+    assert await capture.async_run(FakeSession(_pages(assignments=maintenance))) == []
+    assert await capture.async_run(FakeSession(_pages())) == []
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_error_page_is_not_used_as_a_first_baseline(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    maintenance = "<html><body><h1>Probíhá údržba</h1></body></html>"
+    capture = PageCapture(hass, "entry1", tmp_path)
+    await capture.async_run(FakeSession(_pages(assignments=maintenance)))
+
+    assert await capture.async_run(FakeSession(_pages())) == []
