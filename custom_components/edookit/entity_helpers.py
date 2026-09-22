@@ -2,36 +2,34 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from pyedookit import Lesson
 
-from .coordinator import EdookitCoordinator
+from .const import CONF_SCHOOL, DOMAIN
+from .coordinator import EdookitConfigEntry, EdookitCoordinator
 
 
 class EdookitEntity(CoordinatorEntity[EdookitCoordinator]):
-    """Common base for this integration's entities: entity-name mode plus a
-    unique_id built from the config entry and a subclass-declared suffix."""
+    """Common base for this integration's entities: one service device per
+    config entry, and a unique_id and translation key taken from `key`."""
 
     _attr_has_entity_name = True
-    _unique_id_suffix: str
+    key: str
 
-    def __init__(self, coordinator: EdookitCoordinator, entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: EdookitCoordinator, entry: EdookitConfigEntry) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_{self._unique_id_suffix}"
-
-
-def to_local(naive: datetime) -> datetime:
-    """Attach HA's configured timezone to a naive datetime parsed from portal HTML.
-
-    Edookit renders wall-clock times with no timezone info, so this assumes
-    the school and the Home Assistant instance share a timezone - true for
-    the target audience (Czech schools) but worth noting if that changes.
-    `dt_util.as_local` attaches HA's configured zone directly to a naive
-    value with no UTC conversion first, which is exactly that assumption.
-    """
-    return dt_util.as_local(naive)
+        school = entry.data[CONF_SCHOOL]
+        self._attr_translation_key = self.key
+        self._attr_unique_id = f"{entry.entry_id}_{self.key}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=f"Edookit {school}",
+            manufacturer="Edookit",
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=f"https://{school}.edookit.net",
+        )
 
 
 def lesson_summary(lesson: Lesson) -> str:
@@ -50,7 +48,7 @@ def lesson_description(lesson: Lesson) -> str | None:
 def lesson_attributes(lesson: Lesson) -> dict[str, str | None]:
     """Fields common to the sensor's and event's lesson attribute payloads."""
     return {
-        "start": to_local(lesson.start).isoformat(),
+        "start": dt_util.as_local(lesson.start).isoformat(),
         "room": lesson.room,
         "teacher": lesson.teacher,
     }
@@ -60,8 +58,6 @@ def next_lesson(
     lessons: list[Lesson], now: datetime, *, skip_cancelled: bool
 ) -> Lesson | None:
     candidates = [
-        ls
-        for ls in lessons
-        if (not skip_cancelled or not ls.is_cancelled) and to_local(ls.end) >= now
+        ls for ls in lessons if (not skip_cancelled or not ls.is_cancelled) and ls.end >= now
     ]
     return min(candidates, key=lambda ls: ls.start, default=None)

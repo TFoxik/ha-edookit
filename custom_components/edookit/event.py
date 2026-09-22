@@ -1,25 +1,23 @@
 from __future__ import annotations
 
 from homeassistant.components.event import EventEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
-from .coordinator import EdookitCoordinator
+from .coordinator import EdookitConfigEntry
 from .entity_helpers import EdookitEntity, lesson_attributes, lesson_summary
+
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: EdookitConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator: EdookitCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([EdookitTimetableChangedEvent(coordinator, entry)])
+    async_add_entities([EdookitTimetableChangedEvent(entry.runtime_data, entry)])
 
 
 class EdookitTimetableChangedEvent(EdookitEntity, EventEntity):
-    _attr_name = "Timetable changed"
-    _unique_id_suffix = "timetable_changed"
+    key = "timetable_changed"
     _attr_event_types = ["lesson_cancelled", "lesson_changed"]
 
     def _handle_coordinator_update(self) -> None:

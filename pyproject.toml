@@ -1,12 +1,15 @@
 [project]
 name = "ha-edookit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Home Assistant integration for the Edookit parent portal"
 requires-python = ">=3.12"
-dependencies = ["pyedookit==0.1.0"]
+dependencies = ["pyedookit==0.2.0"]
 
 [project.optional-dependencies]
 test = [
+    # HA 2025.1 pins aiodns==3.2.0 but not pycares; pycares 5 breaks that
+    # aiodns (Channel.getaddrinfo signature), so every DNS lookup fails.
+    "pycares<5",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-homeassistant-custom-component",
@@ -17,6 +20,7 @@ test = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

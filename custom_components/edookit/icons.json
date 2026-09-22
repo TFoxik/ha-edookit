@@ -1,0 +1,22 @@
+{
+  "entity": {
+    "calendar": {
+      "timetable": {
+        "default": "mdi:calendar-clock"
+      }
+    },
+    "event": {
+      "timetable_changed": {
+        "default": "mdi:calendar-alert"
+      }
+    },
+    "sensor": {
+      "next_lesson": {
+        "default": "mdi:school"
+      },
+      "lessons_today": {
+        "default": "mdi:counter"
+      }
+    }
+  }
+}

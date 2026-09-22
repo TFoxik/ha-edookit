@@ -7,6 +7,10 @@
           "school": "Subdoména školy (část před .edookit.net)",
           "username": "Uživatelské jméno nebo e-mail Plus4U",
           "password": "Heslo Plus4U"
+        },
+        "description": "Přihlaste se účtem Plus4U, který používáte pro rodičovský portál Edookit. Heslo se použije jen pro toto přihlášení a neukládá se.",
+        "data_description": {
+          "school": "Pro https://zs-example.edookit.net zadejte zs-example."
         }
       },
       "reauth_confirm": {
@@ -19,23 +23,48 @@
       }
     },
     "error": {
-      "invalid_auth": "Neplatné uživatelské jméno nebo heslo."
+      "invalid_auth": "Neplatné uživatelské jméno nebo heslo.",
+      "cannot_connect": "Nepodařilo se spojit s Edookitem nebo Plus4U. Zkontrolujte subdoménu školy a připojení.",
+      "unknown": "Neočekávaná chyba, podívejte se do logu Home Assistantu."
     },
     "abort": {
       "already_configured": "Tato škola a účet jsou již nakonfigurovány.",
-      "reauth_successful": "Opětovné přihlášení proběhlo úspěšně."
+      "reauth_successful": "Opětovné přihlášení proběhlo úspěšně.",
+      "wrong_account": "Přihlaste se stejným účtem Plus4U, se kterým byla integrace nastavena."
     }
   },
   "entity": {
     "sensor": {
-      "next_lesson": { "name": "Další hodina" },
-      "lessons_today": { "name": "Hodiny dnes" }
+      "next_lesson": {
+        "name": "Další hodina"
+      },
+      "lessons_today": {
+        "name": "Hodiny dnes"
+      }
     },
     "calendar": {
-      "timetable": { "name": "Rozvrh" }
+      "timetable": {
+        "name": "Rozvrh"
+      }
     },
     "event": {
-      "timetable_changed": { "name": "Změna rozvrhu" }
+      "timetable_changed": {
+        "name": "Změna rozvrhu"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_expired": {
+      "message": "Přihlášení Plus4U vypršelo, přihlaste se prosím znovu."
+    },
+    "session_expired": {
+      "message": "Relace Edookit vypršela hned po obnovení."
+    },
+    "cannot_connect": {
+      "message": "Nepodařilo se spojit s Edookitem: {error}"
+    },
+    "parse_error": {
+      "message": "Stránku s rozvrhem se nepodařilo přečíst, portál se možná změnil: {error}"
     }
   }
 }

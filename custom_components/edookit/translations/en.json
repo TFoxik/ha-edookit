@@ -7,6 +7,10 @@
           "school": "School subdomain (the part before .edookit.net)",
           "username": "Plus4U username or email",
           "password": "Plus4U password"
+        },
+        "description": "Sign in with the Plus4U account you use for the Edookit parent portal. The password is only used for this sign-in and is not stored.",
+        "data_description": {
+          "school": "For https://zs-example.edookit.net enter zs-example."
         }
       },
       "reauth_confirm": {
@@ -19,23 +23,48 @@
       }
     },
     "error": {
-      "invalid_auth": "Invalid username or password."
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Could not reach Edookit or Plus4U. Check the school subdomain and your connection.",
+      "unknown": "Unexpected error, see the Home Assistant log."
     },
     "abort": {
       "already_configured": "This school and account are already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_account": "Sign in with the same Plus4U account this entry was set up with."
     }
   },
   "entity": {
     "sensor": {
-      "next_lesson": { "name": "Next lesson" },
-      "lessons_today": { "name": "Lessons today" }
+      "next_lesson": {
+        "name": "Next lesson"
+      },
+      "lessons_today": {
+        "name": "Lessons today"
+      }
     },
     "calendar": {
-      "timetable": { "name": "Timetable" }
+      "timetable": {
+        "name": "Timetable"
+      }
     },
     "event": {
-      "timetable_changed": { "name": "Timetable changed" }
+      "timetable_changed": {
+        "name": "Timetable changed"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_expired": {
+      "message": "The Plus4U sign-in has expired; please reauthenticate."
+    },
+    "session_expired": {
+      "message": "The Edookit session expired again right after it was renewed."
+    },
+    "cannot_connect": {
+      "message": "Could not reach Edookit: {error}"
+    },
+    "parse_error": {
+      "message": "The Edookit timetable page could not be read, the portal may have changed: {error}"
     }
   }
 }

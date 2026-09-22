@@ -4,16 +4,47 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import aiohttp
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from pyedookit import AuthError, EdookitClient, Lesson, Session, SessionExpired
+from homeassistant.util.hass_dict import HassKey
+from pyedookit import (
+    AuthError,
+    EdookitClient,
+    EdookitConnectionError,
+    Lesson,
+    ParseError,
+    Session,
+    SessionExpired,
+)
 from pyedookit import refresh as edookit_refresh
 
 from .const import CONF_SESSION, DEFAULT_UPDATE_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+type EdookitConfigEntry = ConfigEntry[EdookitCoordinator]
+
+_HTTP_SESSION: HassKey[aiohttp.ClientSession] = HassKey(f"{DOMAIN}_http_session")
+
+
+@callback
+def get_http_session(hass: HomeAssistant) -> aiohttp.ClientSession:
+    """The integration's HA-managed session, which has no cookie jar.
+
+    pyedookit sets Cookie headers by hand per host, so HA's default shared
+    session is unsuitable: its jar would collect edookit/Plus4U cookies and
+    resend them alongside the manual ones. Without a jar the session holds
+    no per-account state, so every entry and config flow can share it.
+    """
+    if (http := hass.data.get(_HTTP_SESSION)) is None:
+        http = hass.data[_HTTP_SESSION] = async_create_clientsession(
+            hass, cookie_jar=aiohttp.DummyCookieJar()
+        )
+    return http
 
 
 @dataclass(slots=True)
@@ -34,28 +65,52 @@ def _disruption_key(lesson: Lesson) -> tuple[datetime, str]:
 
 
 class EdookitCoordinator(DataUpdateCoordinator[EdookitData]):
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, session: Session) -> None:
+    config_entry: EdookitConfigEntry
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: EdookitConfigEntry,
+        session: Session,
+        http: aiohttp.ClientSession,
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
             update_interval=DEFAULT_UPDATE_INTERVAL,
         )
-        self._entry = entry
-        self._client = EdookitClient(session)
+        self._http = http
+        self._client = EdookitClient(session, http=http)
         self._previously_disrupted: set[tuple[datetime, str]] = set()
 
     async def _async_update_data(self) -> EdookitData:
-        if self._client.session.is_edookit_expired:
-            await self._refresh_or_reauth()
         try:
-            return await self._fetch()
-        except SessionExpired:
-            await self._refresh_or_reauth()
+            if self._client.session.is_edookit_expired:
+                await self._refresh_or_reauth()
             try:
                 return await self._fetch()
-            except SessionExpired as err:
-                raise UpdateFailed("edookit session expired again right after refresh") from err
+            except SessionExpired:
+                await self._refresh_or_reauth()
+                try:
+                    return await self._fetch()
+                except SessionExpired as err:
+                    raise UpdateFailed(
+                        translation_domain=DOMAIN, translation_key="session_expired"
+                    ) from err
+        except EdookitConnectionError as err:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        except ParseError as err:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="parse_error",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def _fetch(self) -> EdookitData:
         lessons = sorted(await self._client.get_timetable(week_offset=0), key=lambda ls: ls.start)
@@ -79,11 +134,14 @@ class EdookitCoordinator(DataUpdateCoordinator[EdookitData]):
         try:
             await self._refresh_session()
         except AuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="auth_expired"
+            ) from err
 
     async def _refresh_session(self) -> None:
-        new_session = await edookit_refresh(self._client.session)
-        self._client = EdookitClient(new_session)
+        new_session = await edookit_refresh(self._client.session, http=self._http)
+        self._client = EdookitClient(new_session, http=self._http)
         self.hass.config_entries.async_update_entry(
-            self._entry, data={**self._entry.data, CONF_SESSION: new_session.to_json()}
+            self.config_entry,
+            data={**self.config_entry.data, CONF_SESSION: new_session.to_json()},
         )

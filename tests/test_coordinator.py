@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from pyedookit import AuthError, Lesson, Session, SessionExpired
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from pyedookit import (
+    PORTAL_TZ,
+    AuthError,
+    EdookitConnectionError,
+    Lesson,
+    ParseError,
+    Session,
+    SessionExpired,
+)
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
@@ -35,7 +44,7 @@ async def test_expired_plus4u_session_raises_config_entry_auth_failed(hass: Home
     # HA's reauth flow triggers - not escape as an unhandled exception. Before
     # the fix, this AuthError was raised from inside an `except SessionExpired`
     # block and never reached the sibling `except AuthError` around it.
-    coordinator = EdookitCoordinator(hass, _entry(hass), SESSION)
+    coordinator = EdookitCoordinator(hass, _entry(hass), SESSION, MagicMock())
 
     with (
         patch(
@@ -53,7 +62,9 @@ async def test_expired_plus4u_session_raises_config_entry_auth_failed(hass: Home
 
 async def test_successful_refresh_retries_the_fetch(hass: HomeAssistant) -> None:
     lesson = Lesson(
-        start=datetime(2026, 9, 21, 8, 0), end=datetime(2026, 9, 21, 8, 45), subject="Matematika"
+        start=datetime(2026, 9, 21, 8, 0, tzinfo=PORTAL_TZ),
+        end=datetime(2026, 9, 21, 8, 45, tzinfo=PORTAL_TZ),
+        subject="Matematika",
     )
     refreshed_session = Session(
         school="zs-example",
@@ -61,7 +72,7 @@ async def test_successful_refresh_retries_the_fetch(hass: HomeAssistant) -> None
         plus4u_cookies={"uoid.ps": "p"},
         csrf_token="csrf2",
     )
-    coordinator = EdookitCoordinator(hass, _entry(hass), SESSION)
+    coordinator = EdookitCoordinator(hass, _entry(hass), SESSION, MagicMock())
 
     calls = 0
 
@@ -85,3 +96,27 @@ async def test_successful_refresh_retries_the_fetch(hass: HomeAssistant) -> None
         data = await coordinator._async_update_data()
 
     assert data.lessons == [lesson]
+
+
+@pytest.mark.parametrize(
+    ("error", "translation_key"),
+    [
+        (EdookitConnectionError("timeout"), "cannot_connect"),
+        (ParseError("no lesson-info blocks"), "parse_error"),
+    ],
+)
+async def test_library_errors_become_translated_update_failed(
+    hass: HomeAssistant, error: Exception, translation_key: str
+) -> None:
+    coordinator = EdookitCoordinator(hass, _entry(hass), SESSION, MagicMock())
+
+    with (
+        patch(
+            "custom_components.edookit.coordinator.EdookitClient.get_timetable",
+            new=AsyncMock(side_effect=error),
+        ),
+        pytest.raises(UpdateFailed) as exc_info,
+    ):
+        await coordinator._async_update_data()
+
+    assert exc_info.value.translation_key == translation_key
