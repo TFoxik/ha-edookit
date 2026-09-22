@@ -1,25 +1,25 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 from pyedookit import Lesson
 
 from .const import CONF_SCHOOL, DOMAIN
-from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
 
 
-class EdookitEntity(CoordinatorEntity[EdookitCoordinator]):
+class EdookitEntity[CoordinatorT: DataUpdateCoordinator[Any]](CoordinatorEntity[CoordinatorT]):
     """Common base for this integration's entities: one service device per
     config entry, and a unique_id and translation key taken from `key`."""
 
     _attr_has_entity_name = True
     key: str
 
-    def __init__(self, coordinator: EdookitCoordinator, entry: EdookitConfigEntry) -> None:
+    def __init__(self, coordinator: CoordinatorT, entry: EdookitConfigEntry) -> None:
         super().__init__(coordinator)
         school = entry.data[CONF_SCHOOL]
         self._attr_translation_key = self.key

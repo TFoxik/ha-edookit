@@ -40,11 +40,17 @@
       },
       "lessons_today": {
         "name": "Hodiny dnes"
+      },
+      "payments_due": {
+        "name": "K zaplacení"
       }
     },
     "calendar": {
       "timetable": {
         "name": "Rozvrh"
+      },
+      "school_events": {
+        "name": "Školní akce"
       }
     },
     "event": {

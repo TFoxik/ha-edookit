@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 
 if TYPE_CHECKING:
     from .coordinator import EdookitCoordinator
+    from .school_coordinator import EdookitSchoolCoordinator
     from .session_manager import EdookitSessionManager
 
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 class EdookitRuntimeData:
     session: EdookitSessionManager
     timetable: EdookitCoordinator
+    school: EdookitSchoolCoordinator
 
 
 type EdookitConfigEntry = ConfigEntry[EdookitRuntimeData]

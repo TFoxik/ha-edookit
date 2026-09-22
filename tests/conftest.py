@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from unittest.mock import MagicMock, patch
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pyedookit import Payments
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -21,3 +23,20 @@ def mock_http_session() -> Iterator[MagicMock]:
         patch("custom_components.edookit.config_flow.get_http_session", return_value=http),
     ):
         yield http
+
+
+NO_PAYMENTS = Payments(
+    paid=Decimal(0), remaining=Decimal(0), overpaid=Decimal(0), currency="CZK", requests=[]
+)
+
+
+@pytest.fixture(autouse=True)
+def mock_school_pages() -> Iterator[None]:
+    with (
+        patch("pyedookit.client.EdookitClient.get_events", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_payments",
+            new=AsyncMock(return_value=NO_PAYMENTS),
+        ),
+    ):
+        yield

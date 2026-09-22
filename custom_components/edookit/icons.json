@@ -3,6 +3,9 @@
     "calendar": {
       "timetable": {
         "default": "mdi:calendar-clock"
+      },
+      "school_events": {
+        "default": "mdi:calendar-star"
       }
     },
     "event": {
@@ -16,6 +19,9 @@
       },
       "lessons_today": {
         "default": "mdi:counter"
+      },
+      "payments_due": {
+        "default": "mdi:cash-clock"
       }
     }
   }

@@ -40,11 +40,17 @@
       },
       "lessons_today": {
         "name": "Lessons today"
+      },
+      "payments_due": {
+        "name": "Payments due"
       }
     },
     "calendar": {
       "timetable": {
         "name": "Timetable"
+      },
+      "school_events": {
+        "name": "School events"
       }
     },
     "event": {

@@ -14,9 +14,12 @@ TO_REDACT = {CONF_SESSION, CONF_SCHOOL, "username", "password"}
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: EdookitConfigEntry
 ) -> dict[str, Any]:
-    coordinator = entry.runtime_data.timetable
+    runtime = entry.runtime_data
+    coordinator = runtime.timetable
     return {
         "entry_data": async_redact_data(dict(entry.data), TO_REDACT),
         "last_update_success": coordinator.last_update_success,
         "lesson_count": len(coordinator.data.lessons),
+        "school_last_update_success": runtime.school.last_update_success,
+        "event_count": len(runtime.school.data.events) if runtime.school.data else 0,
     }

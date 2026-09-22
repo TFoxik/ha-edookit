@@ -4,6 +4,7 @@ from homeassistant.components.event import EventEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
 from .entity_helpers import EdookitEntity, lesson_attributes, lesson_summary
 
@@ -16,7 +17,7 @@ async def async_setup_entry(
     async_add_entities([EdookitTimetableChangedEvent(entry.runtime_data.timetable, entry)])
 
 
-class EdookitTimetableChangedEvent(EdookitEntity, EventEntity):
+class EdookitTimetableChangedEvent(EdookitEntity[EdookitCoordinator], EventEntity):
     key = "timetable_changed"
     _attr_event_types = ["lesson_cancelled", "lesson_changed"]
 
