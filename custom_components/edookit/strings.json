@@ -33,6 +33,19 @@
       "wrong_account": "Sign in with the same Plus4U account this entry was set up with."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edookit options",
+        "data": {
+          "capture_pages": "Save pages with new content for development"
+        },
+        "data_description": {
+          "capture_pages": "Watches the homework, tests, inbox and consents pages and saves a copy to edookit_captures in your config folder when their content changes, so support for them can be built. The saved files contain personal data."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "next_lesson": {

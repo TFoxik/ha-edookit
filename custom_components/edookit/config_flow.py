@@ -4,12 +4,13 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 from pyedookit import AuthError, EdookitConnectionError, Session
 from pyedookit import login as edookit_login
 
-from .const import CONF_SCHOOL, CONF_SESSION, DOMAIN
+from .const import CONF_CAPTURE_PAGES, CONF_SCHOOL, CONF_SESSION, DOMAIN
 from .session_manager import get_http_session
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,6 +33,11 @@ def _unique_id(school: str, username: str) -> str:
 
 class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> EdookitOptionsFlow:
+        return EdookitOptionsFlow()
 
     async def _try_login(
         self, school: str, user_input: dict[str, Any], errors: dict[str, str]
@@ -101,4 +107,21 @@ class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_REAUTH_SCHEMA,
             errors=errors,
             description_placeholders={"school": school},
+        )
+
+
+OPTIONS_SCHEMA = vol.Schema({vol.Required(CONF_CAPTURE_PAGES, default=False): bool})
+
+
+class EdookitOptionsFlow(OptionsFlow):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                OPTIONS_SCHEMA, self.config_entry.options
+            ),
         )

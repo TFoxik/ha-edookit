@@ -33,6 +33,19 @@
       "wrong_account": "Přihlaste se stejným účtem Plus4U, se kterým byla integrace nastavena."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Možnosti Edookitu",
+        "data": {
+          "capture_pages": "Ukládat stránky s novým obsahem pro vývoj"
+        },
+        "data_description": {
+          "capture_pages": "Sleduje stránky s úkoly, písemkami, schránkou a souhlasy a při změně obsahu uloží kopii do složky edookit_captures v konfiguraci, aby pro ně šla doplnit podpora. Uložené soubory obsahují osobní údaje."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "next_lesson": {

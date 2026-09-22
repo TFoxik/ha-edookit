@@ -21,5 +21,6 @@ async def async_get_config_entry_diagnostics(
         "last_update_success": coordinator.last_update_success,
         "lesson_count": len(coordinator.data.lessons),
         "school_last_update_success": runtime.school.last_update_success,
+        "capture_enabled": runtime.capture_enabled,
         "event_count": len(runtime.school.data.events) if runtime.school.data else 0,
     }

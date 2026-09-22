@@ -16,6 +16,7 @@ class EdookitRuntimeData:
     session: EdookitSessionManager
     timetable: EdookitCoordinator
     school: EdookitSchoolCoordinator
+    capture_enabled: bool = False
 
 
 type EdookitConfigEntry = ConfigEntry[EdookitRuntimeData]
