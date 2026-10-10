@@ -10,7 +10,7 @@
         },
         "description": "Přihlaste se účtem Plus4U, který používáte pro rodičovský portál Edookit. Heslo se použije jen pro toto přihlášení a neukládá se.",
         "data_description": {
-          "school": "Pro https://zs-example.edookit.net zadejte zs-example."
+          "school": "Pro {example_url} zadejte zs-example."
         }
       },
       "reauth_confirm": {

@@ -10,7 +10,7 @@
         },
         "description": "Sign in with the Plus4U account you use for the Edookit parent portal. The password is only used for this sign-in and is not stored.",
         "data_description": {
-          "school": "For https://zs-example.edookit.net enter zs-example."
+          "school": "For {example_url} enter zs-example."
         }
       },
       "reauth_confirm": {

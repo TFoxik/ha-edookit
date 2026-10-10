@@ -78,6 +78,7 @@ class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(STEP_USER_SCHEMA, user_input),
             errors=errors,
+            description_placeholders={"example_url": "https://zs-example.edookit.net"},
         )
 
     async def async_step_reauth(
