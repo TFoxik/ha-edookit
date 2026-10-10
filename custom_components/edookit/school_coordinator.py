@@ -8,7 +8,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from pyedookit import EdookitClient, Payments, SchoolEvent
 
-from .capture import PageCapture
 from .const import DOMAIN, SCHOOL_UPDATE_INTERVAL
 from .data import EdookitConfigEntry
 from .session_manager import EdookitSessionManager
@@ -30,7 +29,6 @@ class EdookitSchoolCoordinator(DataUpdateCoordinator[SchoolData]):
         hass: HomeAssistant,
         entry: EdookitConfigEntry,
         session: EdookitSessionManager,
-        capture: PageCapture | None,
     ) -> None:
         super().__init__(
             hass,
@@ -40,13 +38,10 @@ class EdookitSchoolCoordinator(DataUpdateCoordinator[SchoolData]):
             update_interval=SCHOOL_UPDATE_INTERVAL,
         )
         self._session = session
-        self._capture = capture
 
     async def _async_update_data(self) -> SchoolData:
         events, payments = await asyncio.gather(
             self._session.async_call(EdookitClient.get_events),
             self._session.async_call(EdookitClient.get_payments),
         )
-        if self._capture is not None:
-            await self._capture.async_run(self._session)
         return SchoolData(events=events, payments=payments)

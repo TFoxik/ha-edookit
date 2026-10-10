@@ -7,6 +7,7 @@ from typing import TypedDict
 
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -62,6 +63,9 @@ class PageCapture:
                 continue
             try:
                 html = await session.async_call(_page_fetcher(name))
+            except ConfigEntryAuthFailed:
+                _LOGGER.debug("Skipping page capture until Edookit is reauthenticated")
+                break
             except UpdateFailed as err:
                 _LOGGER.warning("Could not fetch %s for capture: %s", name, err)
                 continue

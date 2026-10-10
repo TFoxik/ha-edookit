@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
 from pyedookit import Session
 
 from .capture import PageCapture
-from .const import CAPTURE_DIR, CONF_CAPTURE_PAGES, CONF_SESSION
+from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_CAPTURE_PAGES, CONF_SESSION, DOMAIN
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
 from .school_coordinator import EdookitSchoolCoordinator
@@ -22,20 +24,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     )
     timetable = EdookitCoordinator(hass, entry, session)
     await timetable.async_config_entry_first_refresh()
-    capture = (
-        PageCapture(hass, entry.entry_id, Path(hass.config.path(CAPTURE_DIR)))
-        if entry.options.get(CONF_CAPTURE_PAGES, False)
-        else None
-    )
-    school = EdookitSchoolCoordinator(hass, entry, session, capture)
+    school = EdookitSchoolCoordinator(hass, entry, session)
     # Not async_config_entry_first_refresh(): a broken events/payments page
     # must not keep the timetable from loading. Auth failures still start
     # reauth from inside async_refresh().
     await school.async_refresh()
 
     entry.runtime_data = EdookitRuntimeData(timetable=timetable, school=school)
+    if entry.options.get(CONF_CAPTURE_PAGES, False):
+        _start_capture(hass, entry, session)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def _start_capture(
+    hass: HomeAssistant, entry: EdookitConfigEntry, session: EdookitSessionManager
+) -> None:
+    capture = PageCapture(hass, entry.entry_id, Path(hass.config.path(CAPTURE_DIR)))
+
+    @callback
+    def _run(_: datetime | None = None) -> None:
+        entry.async_create_background_task(
+            hass, capture.async_run(session), f"{DOMAIN} page capture"
+        )
+
+    _run()
+    entry.async_on_unload(async_track_time_interval(hass, _run, CAPTURE_INTERVAL))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> bool:
