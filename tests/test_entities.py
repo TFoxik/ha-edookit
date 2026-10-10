@@ -59,7 +59,9 @@ async def test_sensors_and_calendar_reflect_fetched_lessons(hass: HomeAssistant)
     lessons_today = hass.states.get("sensor.edookit_zs_example_lessons_today")
     assert lessons_today is not None
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, entry.entry_id), entry.entry_id
+    )
     assert device is not None
     assert device.name == "Edookit zs-example"
 

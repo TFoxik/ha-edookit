@@ -51,7 +51,7 @@ changed while it's running.
 Copy `custom_components/edookit` into your Home Assistant
 `config/custom_components/` directory and restart.
 
-Requires Home Assistant 2025.1 or newer.
+Requires Home Assistant 2026.9 or newer.
 
 ## Configuration
 
@@ -199,14 +199,16 @@ was never stored.
 
 ## Development
 
-Requires a local checkout of [pyedookit](https://github.com/TFoxik/pyedookit)
-next to this repository until it is published to PyPI:
+Needs Python 3.14 and [uv](https://docs.astral.sh/uv/). The test dependencies
+pin the Home Assistant version the tests run against. Install only the
+dependencies, not this repo itself: an editable install adds a path hook that
+Home Assistant's custom-integration loader trips over.
 
 ```bash
-python -m venv .venv
+uv venv -p 3.14
 source .venv/bin/activate
-pip install -e ../pyedookit
-pip install -e ".[test]"
+uv pip install -r pyproject.toml --extra test
+uv pip install -e ../pyedookit  # optional: develop against a local pyedookit checkout
 pytest
 ruff check .
 mypy custom_components

@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
       # Dependencies only: an editable install of this repo adds a path hook
       # that HA's custom-integration loader trips over.
