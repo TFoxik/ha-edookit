@@ -14,11 +14,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 from custom_components.edookit.diagnostics import async_get_config_entry_diagnostics
 
-FAKE_SESSION = Session(
-    school="zs-example",
-    edookit_cookies={"PHPSESSID": "s"},
-    plus4u_cookies={"uoid.ps": "p"},
-    csrf_token="csrf",
+FAKE_SESSION = Session.from_cookies(
+    "zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"}
 )
 
 

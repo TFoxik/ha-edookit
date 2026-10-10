@@ -19,12 +19,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 
-SESSION = Session(
-    school="zs-example",
-    edookit_cookies={"PHPSESSID": "s"},
-    plus4u_cookies={"uoid.ps": "p"},
-    csrf_token="csrf",
-)
+SESSION = Session.from_cookies("zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"})
 EVENTS = [
     SchoolEvent(
         id="5001",

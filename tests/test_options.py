@@ -15,12 +15,7 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.edookit.const import CONF_CAPTURE_PAGES, CONF_SCHOOL, CONF_SESSION, DOMAIN
 
-SESSION = Session(
-    school="zs-example",
-    edookit_cookies={"PHPSESSID": "s"},
-    plus4u_cookies={"uoid.ps": "p"},
-    csrf_token="csrf",
-)
+SESSION = Session.from_cookies("zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"})
 
 
 async def _setup(hass: HomeAssistant, options: dict | None = None) -> MockConfigEntry:
@@ -81,11 +76,8 @@ async def test_capture_on_fetches_capture_pages(hass: HomeAssistant) -> None:
 
 async def test_session_refresh_does_not_reload_entry(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
-    refreshed = Session(
-        school="zs-example",
-        edookit_cookies={"PHPSESSID": "refreshed"},
-        plus4u_cookies={"uoid.ps": "p"},
-        csrf_token="csrf2",
+    refreshed = Session.from_cookies(
+        "zs-example", edookit={"PHPSESSID": "refreshed"}, plus4u={"uoid.ps": "p"}
     )
 
     with patch.object(hass.config_entries, "async_reload", new=AsyncMock()) as reload:
