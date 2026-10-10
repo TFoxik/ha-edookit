@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
-from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -12,7 +12,7 @@ from pyedookit import AuthError, EdookitConnectionError, ParseError, Session, Se
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
-from custom_components.edookit.session_manager import EdookitSessionManager, get_http_session
+from custom_components.edookit.session_manager import EdookitSessionManager
 
 HOST = "zs-example.edookit.net"
 
@@ -105,19 +105,17 @@ async def test_entry_with_a_0_3_session_sets_up(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
 
-async def test_http_session_outlives_entry_unloads_and_is_released_on_shutdown(
-    hass: HomeAssistant,
-) -> None:
-    # With HA's auto_cleanup the session would be tied to whichever entry was
-    # being set up, and its unload would break every other entry's session.
-    create = MagicMock(side_effect=lambda *args, **kwargs: MagicMock(closed=False))
-    with patch("custom_components.edookit.session_manager.async_create_clientsession", create):
-        http = get_http_session(hass)
+async def test_each_entry_gets_its_own_cookieless_session(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_SCHOOL: "zs-example", CONF_SESSION: _session("s").to_json()}
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch("custom_components.edookit.async_create_clientsession") as create,
+        patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
 
-    assert create.call_args.kwargs["auto_cleanup"] is False
-    http.detach.assert_not_called()
-
-    hass.bus.async_fire(EVENT_HOMEASSISTANT_CLOSE)
-    await hass.async_block_till_done()
-
-    http.detach.assert_called_once()
+    assert "auto_cleanup" not in create.call_args.kwargs  # HA's default: released on unload
+    assert isinstance(create.call_args.kwargs["cookie_jar"], aiohttp.DummyCookieJar)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import aiohttp
 import probatio as vol
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -12,11 +13,11 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from pyedookit import AuthError, EdookitConnectionError, Session
 from pyedookit import login as edookit_login
 
 from .const import CONF_CAPTURE_PAGES, CONF_SCHOOL, CONF_SESSION, DOMAIN
-from .session_manager import get_http_session
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,12 +48,14 @@ class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _try_login(
         self, school: str, user_input: dict[str, Any], errors: dict[str, str]
     ) -> Session | None:
+        # A flow has no entry to tie cleanup to, so release the session here;
+        # HA warns on close() for its sessions, detach() is the supported way.
+        http = async_create_clientsession(
+            self.hass, auto_cleanup=False, cookie_jar=aiohttp.DummyCookieJar()
+        )
         try:
             return await edookit_login(
-                school,
-                user_input[CONF_USERNAME],
-                user_input[CONF_PASSWORD],
-                http=get_http_session(self.hass),
+                school, user_input[CONF_USERNAME], user_input[CONF_PASSWORD], http=http
             )
         except AuthError:
             errors["base"] = "invalid_auth"
@@ -61,6 +64,8 @@ class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
         except Exception:
             _LOGGER.exception("Unexpected error while logging in to Edookit")
             errors["base"] = "unknown"
+        finally:
+            http.detach()
         return None
 
     async def async_step_user(

@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import aiohttp
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 from pyedookit import Session
 
@@ -13,15 +15,16 @@ from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_CAPTURE_PAGES, CONF_SESSI
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
 from .school_coordinator import EdookitSchoolCoordinator
-from .session_manager import EdookitSessionManager, get_http_session
+from .session_manager import EdookitSessionManager
 
 PLATFORMS = [Platform.CALENDAR, Platform.EVENT, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> bool:
-    session = EdookitSessionManager(
-        hass, entry, Session.from_json(entry.data[CONF_SESSION]), get_http_session(hass)
-    )
+    # Cookieless because pyedookit sends cookies by hand per host. Created
+    # during setup, so HA detaches it when this entry unloads.
+    http = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
+    session = EdookitSessionManager(hass, entry, Session.from_json(entry.data[CONF_SESSION]), http)
     timetable = EdookitCoordinator(hass, entry, session)
     await timetable.async_config_entry_first_refresh()
     school = EdookitSchoolCoordinator(hass, entry, session)

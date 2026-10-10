@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -118,3 +118,15 @@ async def test_reauth_flow_rejects_a_different_account(hass: HomeAssistant) -> N
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "wrong_account"
     login.assert_not_awaited()
+
+
+async def test_flow_detaches_its_session_after_login(
+    hass: HomeAssistant, mock_http_session: MagicMock
+) -> None:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    with _patch_login(side_effect=AuthError("bad")):
+        await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    mock_http_session.detach.assert_called_once()

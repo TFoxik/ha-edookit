@@ -19,8 +19,11 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 def mock_http_session() -> Iterator[MagicMock]:
     http = MagicMock()
     with (
-        patch("custom_components.edookit.get_http_session", return_value=http),
-        patch("custom_components.edookit.config_flow.get_http_session", return_value=http),
+        patch("custom_components.edookit.async_create_clientsession", return_value=http),
+        patch(
+            "custom_components.edookit.config_flow.async_create_clientsession",
+            return_value=http,
+        ),
     ):
         yield http
 
