@@ -9,7 +9,7 @@ cancelled or changed.
 Edookit's official REST API only works if a school administrator enables
 it, so this integration signs in the way a parent does, through Plus4U,
 and reads the portal pages using the
-[pyedookit](https://github.com/tfox/pyedookit) library. Edookit does not
+[pyedookit](https://github.com/TFoxik/pyedookit) library. Edookit does not
 support it, and a change to the portal's pages can break it until
 pyedookit is updated.
 
@@ -43,7 +43,7 @@ changed while it's running.
 ### HACS (recommended)
 
 1. In HACS, open the menu → **Custom repositories**, add
-   `https://github.com/tfox/ha-edookit` with category **Integration**.
+   `https://github.com/TFoxik/ha-edookit` with category **Integration**.
 2. Search for **Edookit**, download it, and restart Home Assistant.
 
 ### Manual
@@ -199,7 +199,7 @@ was never stored.
 
 ## Development
 
-Requires a local checkout of [pyedookit](https://github.com/tfox/pyedookit)
+Requires a local checkout of [pyedookit](https://github.com/TFoxik/pyedookit)
 next to this repository until it is published to PyPI:
 
 ```bash
