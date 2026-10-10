@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -42,8 +43,10 @@ class EdookitSchoolCoordinator(DataUpdateCoordinator[SchoolData]):
         self._capture = capture
 
     async def _async_update_data(self) -> SchoolData:
-        events = await self._session.async_call(EdookitClient.get_events)
-        payments = await self._session.async_call(EdookitClient.get_payments)
+        events, payments = await asyncio.gather(
+            self._session.async_call(EdookitClient.get_events),
+            self._session.async_call(EdookitClient.get_payments),
+        )
         if self._capture is not None:
             await self._capture.async_run(self._session)
         return SchoolData(events=events, payments=payments)

@@ -4,13 +4,11 @@ rules:
     status: exempt
     comment: No service actions.
   appropriate-polling: done
-  brands: todo
+  brands: done
   common-modules: done
   config-flow-test-coverage: done
   config-flow: done
-  dependency-transparency:
-    status: todo
-    comment: pyedookit is not on PyPI yet; publish it from its own repo's workflow.
+  dependency-transparency: done
   docs-actions:
     status: exempt
     comment: No service actions.
@@ -63,9 +61,7 @@ rules:
   entity-category:
     status: exempt
     comment: All entities are primary timetable data, none are config or diagnostic.
-  entity-device-class:
-    status: exempt
-    comment: No matching device classes for lessons or subjects.
+  entity-device-class: done
   entity-disabled-by-default:
     status: exempt
     comment: Every entity is part of the core timetable use case.

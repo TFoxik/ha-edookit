@@ -53,6 +53,10 @@ image_upload:
 webhook:
 mobile_app:
 
+# A dev instance with a real account in it has no business on the LAN.
+http:
+  server_host: 127.0.0.1
+
 logger:
   default: info
   logs:

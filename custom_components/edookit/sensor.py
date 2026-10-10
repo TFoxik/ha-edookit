@@ -7,6 +7,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
+from pyedookit import Lesson
 
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
@@ -33,14 +34,17 @@ class EdookitNextLessonSensor(EdookitEntity[EdookitCoordinator], SensorEntity):
     key = "next_lesson"
 
     @property
+    def _lesson(self) -> Lesson | None:
+        return next_lesson(self.coordinator.data.lessons, dt_util.now(), skip_cancelled=True)
+
+    @property
     def native_value(self) -> str | None:
-        lesson = next_lesson(self.coordinator.data.lessons, dt_util.now(), skip_cancelled=True)
+        lesson = self._lesson
         return lesson.subject if lesson else None
 
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
-        lesson = next_lesson(self.coordinator.data.lessons, dt_util.now(), skip_cancelled=True)
-        if lesson is None:
+        if (lesson := self._lesson) is None:
             return {}
         return {**lesson_attributes(lesson), "end": dt_util.as_local(lesson.end).isoformat()}
 
@@ -62,6 +66,8 @@ class EdookitLessonsTodaySensor(EdookitEntity[EdookitCoordinator], SensorEntity)
 class EdookitPaymentsDueSensor(EdookitEntity[EdookitSchoolCoordinator], SensorEntity):
     key = "payments_due"
     _attr_device_class = SensorDeviceClass.MONETARY
+    # Request titles often name the child; keep them out of long-term history.
+    _unrecorded_attributes = frozenset({"unpaid_requests"})
 
     @property
     def native_value(self) -> Decimal:

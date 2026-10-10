@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 class EdookitRuntimeData:
     timetable: EdookitCoordinator
     school: EdookitSchoolCoordinator
-    capture_enabled: bool
 
 
 type EdookitConfigEntry = ConfigEntry[EdookitRuntimeData]

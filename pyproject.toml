@@ -9,8 +9,8 @@ dependencies = ["pyedookit==0.3.1"]
 test = [
     # Pins pytest, pytest-asyncio and homeassistant itself.
     "pytest-homeassistant-custom-component==0.13.371",
-    "ruff>=0.6",
-    "mypy>=1.11",
+    "ruff>=0.17",
+    "mypy>=2.4",
 ]
 
 [tool.pytest.ini_options]

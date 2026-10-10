@@ -35,9 +35,10 @@ async def test_options_flow_defaults_to_off_and_saves(hass: HomeAssistant) -> No
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.FORM
+    fetch_page = AsyncMock(return_value="<p/>")
     with (
         patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
-        patch("pyedookit.client.EdookitClient.fetch_page", new=AsyncMock(return_value="<p/>")),
+        patch("pyedookit.client.EdookitClient.fetch_page", new=fetch_page),
     ):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], {CONF_CAPTURE_PAGES: True}
@@ -46,7 +47,8 @@ async def test_options_flow_defaults_to_off_and_saves(hass: HomeAssistant) -> No
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == {CONF_CAPTURE_PAGES: True}
-    assert entry.runtime_data.capture_enabled is True
+    # The entry reloaded with capture on, so the school refresh fetched the pages.
+    fetch_page.assert_awaited()
 
 
 async def test_capture_off_fetches_no_extra_pages(hass: HomeAssistant) -> None:

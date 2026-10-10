@@ -2,17 +2,21 @@ name: Tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
       # Dependencies only: an editable install of this repo adds a path hook
       # that HA's custom-integration loader trips over.
       - run: uv pip install --system -r pyproject.toml --extra test

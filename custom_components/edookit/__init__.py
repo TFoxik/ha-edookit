@@ -22,10 +22,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     )
     timetable = EdookitCoordinator(hass, entry, session)
     await timetable.async_config_entry_first_refresh()
-    capture_enabled = bool(entry.options.get(CONF_CAPTURE_PAGES, False))
     capture = (
         PageCapture(hass, entry.entry_id, Path(hass.config.path(CAPTURE_DIR)))
-        if capture_enabled
+        if entry.options.get(CONF_CAPTURE_PAGES, False)
         else None
     )
     school = EdookitSchoolCoordinator(hass, entry, session, capture)
@@ -34,20 +33,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     # reauth from inside async_refresh().
     await school.async_refresh()
 
-    entry.runtime_data = EdookitRuntimeData(
-        timetable=timetable, school=school, capture_enabled=capture_enabled
-    )
-    entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
+    entry.runtime_data = EdookitRuntimeData(timetable=timetable, school=school)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-
-async def _async_entry_updated(hass: HomeAssistant, entry: EdookitConfigEntry) -> None:
-    # Session refreshes also update the entry (its data); only an options
-    # change should reload.
-    if bool(entry.options.get(CONF_CAPTURE_PAGES, False)) != entry.runtime_data.capture_enabled:
-        await hass.config_entries.async_reload(entry.entry_id)

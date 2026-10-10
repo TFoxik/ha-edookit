@@ -54,6 +54,7 @@ async def test_changed_page_is_saved_and_notified(
     files = sorted(p.name for p in tmp_path.iterdir())
     assert files == ["assignments-20260922-1000.html"]
     assert (tmp_path / files[0]).read_text() == WITH_ITEM
+    assert (tmp_path / files[0]).stat().st_mode & 0o777 == 0o600
     assert "assignments" in _notification(hass)["message"]
     assert await capture.async_run(FakeSession(_pages(assignments=WITH_ITEM))) == []
 

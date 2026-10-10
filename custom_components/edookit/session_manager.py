@@ -82,12 +82,11 @@ class EdookitSessionManager:
                 return await fetch(client)
             except SessionExpired:
                 client = await self._refresh(client.session)
-                try:
-                    return await fetch(client)
-                except SessionExpired as err:
-                    raise UpdateFailed(
-                        translation_domain=DOMAIN, translation_key="session_expired"
-                    ) from err
+            return await fetch(client)
+        except SessionExpired as err:
+            raise UpdateFailed(
+                translation_domain=DOMAIN, translation_key="session_expired"
+            ) from err
         except EdookitConnectionError as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN,

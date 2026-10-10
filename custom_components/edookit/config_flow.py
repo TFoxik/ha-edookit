@@ -4,7 +4,12 @@ import logging
 from typing import Any
 
 import probatio as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from pyedookit import AuthError, EdookitConnectionError, Session
@@ -114,7 +119,7 @@ class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
 OPTIONS_SCHEMA = vol.Schema({vol.Required(CONF_CAPTURE_PAGES, default=False): bool})
 
 
-class EdookitOptionsFlow(OptionsFlow):
+class EdookitOptionsFlow(OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:

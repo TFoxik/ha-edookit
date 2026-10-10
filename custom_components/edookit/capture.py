@@ -29,7 +29,9 @@ def _page_fetcher(name: str) -> Callable[[EdookitClient], Awaitable[str]]:
 
 
 def _write(path: Path, html: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # The pages hold the family's personal data; keep them owner-only.
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.touch(mode=0o600)
     path.write_text(html, encoding="utf-8")
 
 
@@ -53,6 +55,7 @@ class PageCapture:
         now = dt_util.now()
         today = now.date().isoformat()
         captured: list[str] = []
+        changed = False
 
         for name in CAPTURE_PAGES:
             if name in state["baselines"] and state["captured_on"].get(name) == today:
@@ -62,12 +65,14 @@ class PageCapture:
             except UpdateFailed as err:
                 _LOGGER.warning("Could not fetch %s for capture: %s", name, err)
                 continue
-            if (fingerprint := content_fingerprint(html)) is None:
+            fingerprint = await self._hass.async_add_executor_job(content_fingerprint, html)
+            if fingerprint is None:
                 _LOGGER.debug("Skipping %s for capture: not a portal page", name)
                 continue
             baseline = state["baselines"].get(name)
             if baseline is None:
                 state["baselines"][name] = fingerprint
+                changed = True
                 continue
             if fingerprint == baseline:
                 continue
@@ -81,7 +86,8 @@ class PageCapture:
             state["captured_on"][name] = today
             captured.append(name)
 
-        await self._store.async_save(state)
+        if changed or captured:
+            await self._store.async_save(state)
         if captured:
             persistent_notification.async_create(
                 self._hass,
