@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 
 if TYPE_CHECKING:
     from .coordinator import EdookitCoordinator
+    from .memory import WeekMemory
     from .school_coordinator import EdookitSchoolCoordinator
 
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 class EdookitRuntimeData:
     timetable: EdookitCoordinator
     school: EdookitSchoolCoordinator
+    memory: WeekMemory
 
 
 type EdookitConfigEntry = ConfigEntry[EdookitRuntimeData]

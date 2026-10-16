@@ -8,12 +8,14 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.event import async_track_time_interval
-from pyedookit import Session
+from homeassistant.util import dt as dt_util
+from pyedookit import PORTAL_TZ, Session
 
 from .capture import PageCapture
 from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_CAPTURE_PAGES, CONF_SESSION, DOMAIN
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
+from .memory import WeekMemory
 from .school_coordinator import EdookitSchoolCoordinator
 from .session_manager import EdookitSessionManager
 
@@ -25,6 +27,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     # during setup, so HA detaches it when this entry unloads.
     http = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
     session = EdookitSessionManager(hass, entry, Session.from_json(entry.data[CONF_SESSION]), http)
+    memory = WeekMemory(hass, entry.entry_id)
+    await memory.async_load()
     timetable = EdookitCoordinator(hass, entry, session)
     await timetable.async_config_entry_first_refresh()
     school = EdookitSchoolCoordinator(hass, entry, session)
@@ -33,11 +37,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     # reauth from inside async_refresh().
     await school.async_refresh()
 
-    entry.runtime_data = EdookitRuntimeData(timetable=timetable, school=school)
+    entry.runtime_data = EdookitRuntimeData(timetable=timetable, school=school, memory=memory)
+    _feed_memory(entry, timetable, school, memory)
     if entry.options.get(CONF_CAPTURE_PAGES, False):
         _start_capture(hass, entry, session)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def _feed_memory(
+    entry: EdookitConfigEntry,
+    timetable: EdookitCoordinator,
+    school: EdookitSchoolCoordinator,
+    memory: WeekMemory,
+) -> None:
+    @callback
+    def _remember_lessons() -> None:
+        if timetable.last_update_success and timetable.data is not None:
+            today = dt_util.now().astimezone(PORTAL_TZ).date()
+            memory.remember_lessons(timetable.data.lessons, timetable.data.periods, today)
+
+    @callback
+    def _observe_events() -> None:
+        if school.last_update_success and school.data is not None:
+            memory.observe_events(school.data.events, dt_util.now().astimezone(PORTAL_TZ))
+
+    _remember_lessons()
+    _observe_events()
+    entry.async_on_unload(timetable.async_add_listener(_remember_lessons))
+    entry.async_on_unload(school.async_add_listener(_observe_events))
 
 
 def _start_capture(
