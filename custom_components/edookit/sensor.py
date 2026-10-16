@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -25,6 +26,7 @@ async def async_setup_entry(
         [
             EdookitNextLessonSensor(runtime.timetable, entry),
             EdookitLessonsTodaySensor(runtime.timetable, entry),
+            EdookitSchoolEndsSensor(runtime.timetable, entry),
             EdookitPaymentsDueSensor(runtime.school, entry),
         ]
     )
@@ -60,6 +62,23 @@ class EdookitLessonsTodaySensor(EdookitEntity[EdookitCoordinator], SensorEntity)
             1
             for ls in self.coordinator.data.lessons
             if not ls.is_cancelled and dt_util.as_local(ls.start).date() == today
+        )
+
+
+class EdookitSchoolEndsSensor(EdookitEntity[EdookitCoordinator], SensorEntity):
+    key = "school_ends"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def native_value(self) -> datetime | None:
+        today = dt_util.now().date()
+        return max(
+            (
+                ls.end
+                for ls in self.coordinator.data.lessons
+                if not ls.is_cancelled and dt_util.as_local(ls.start).date() == today
+            ),
+            default=None,
         )
 
 

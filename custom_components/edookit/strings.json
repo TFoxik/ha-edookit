@@ -54,6 +54,9 @@
       "lessons_today": {
         "name": "Lessons today"
       },
+      "school_ends": {
+        "name": "School ends"
+      },
       "payments_due": {
         "name": "Payments due"
       }

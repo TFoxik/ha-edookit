@@ -54,6 +54,9 @@
       "lessons_today": {
         "name": "Hodiny dnes"
       },
+      "school_ends": {
+        "name": "Konec vyučování"
+      },
       "payments_due": {
         "name": "K zaplacení"
       }

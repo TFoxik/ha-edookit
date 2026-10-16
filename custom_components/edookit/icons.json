@@ -20,6 +20,9 @@
       "lessons_today": {
         "default": "mdi:counter"
       },
+      "school_ends": {
+        "default": "mdi:bell-ring"
+      },
       "payments_due": {
         "default": "mdi:cash-clock"
       }
