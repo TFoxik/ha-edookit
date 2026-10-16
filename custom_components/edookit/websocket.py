@@ -76,21 +76,28 @@ def _subscribe_week(
         )
 
     @callback
-    def stop() -> None:
+    def stop(*, from_state_change: bool = False) -> None:
         nonlocal stopped
         if stopped:
             return
         stopped = True
         unsubscribe_memory()
-        forget_entry_state()
         if cancel_midnight is not None:
             cancel_midnight()
+        if from_state_change:
+            # HA is iterating the state-change callbacks right now; removing
+            # one mid-loop would make it skip the next subscription's.
+            hass.loop.call_soon(forget_entry_state)
+        else:
+            forget_entry_state()
 
     @callback
     def entry_state_changed() -> None:
-        if entry.state is not ConfigEntryState.LOADED:
-            connection.subscriptions.pop(msg_id, None)
-            stop()
+        if stopped or entry.state is ConfigEntryState.LOADED:
+            return
+        connection.subscriptions.pop(msg_id, None)
+        connection.send_message(websocket_api.event_message(msg_id, {"unloaded": True}))
+        stop(from_state_change=True)
 
     unsubscribe_memory = memory.async_add_listener(push)
     forget_entry_state = entry.async_on_state_change(entry_state_changed)
