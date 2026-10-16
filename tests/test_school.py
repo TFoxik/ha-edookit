@@ -26,7 +26,7 @@ EVENTS = [
         title="Pasování na čtenáře",
         start=datetime(2026, 9, 23, 13, 30, tzinfo=PORTAL_TZ),
         end=datetime(2026, 9, 23, 15, 30, tzinfo=PORTAL_TZ),
-        description="Družina",
+        description="Popis A",
     ),
     SchoolEvent(id="5003", title="Státní svátek", start=date(2026, 9, 28), end=date(2026, 9, 28)),
     SchoolEvent(
@@ -34,13 +34,13 @@ EVENTS = [
     ),
 ]
 PAYMENTS = Payments(
-    paid=Decimal(1400),
-    remaining=Decimal(400),
+    paid=Decimal(1234),
+    remaining=Decimal(321),
     overpaid=Decimal(0),
     currency="CZK",
     requests=[
-        PaymentRequest("Družina", Decimal(1400), "CZK", is_paid=True),
-        PaymentRequest("Výlet do ZOO", Decimal(400), "CZK", is_paid=False),
+        PaymentRequest("Testovací poplatek A", Decimal(1234), "CZK", is_paid=True),
+        PaymentRequest("Testovací poplatek B", Decimal(321), "CZK", is_paid=False),
     ],
 )
 
@@ -76,7 +76,7 @@ async def test_events_calendar_returns_events_in_range(hass: HomeAssistant) -> N
     events = await calendar.async_get_events(hass, start, start + timedelta(days=8))
 
     assert [e.summary for e in events] == ["Pasování na čtenáře", "Státní svátek"]
-    assert events[0].description == "Družina"
+    assert events[0].description == "Popis A"
     assert (events[1].start, events[1].end) == (date(2026, 9, 28), date(2026, 9, 29))
 
 
@@ -96,11 +96,13 @@ async def test_payments_due_sensor(hass: HomeAssistant) -> None:
     state = hass.states.get("sensor.edookit_zs_example_payments_due")
 
     assert state is not None
-    assert float(state.state) == 400
+    assert float(state.state) == 321
     assert state.attributes["unit_of_measurement"] == "CZK"
     assert state.attributes["device_class"] == "monetary"
-    assert state.attributes["paid"] == 1400
-    assert state.attributes["unpaid_requests"] == [{"title": "Výlet do ZOO", "amount": 400.0}]
+    assert state.attributes["paid"] == 1234
+    assert state.attributes["unpaid_requests"] == [
+        {"title": "Testovací poplatek B", "amount": 321.0}
+    ]
 
 
 async def test_school_failure_leaves_timetable_working(hass: HomeAssistant) -> None:
