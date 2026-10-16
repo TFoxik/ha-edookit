@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
-from pyedookit import PORTAL_TZ, Lesson, Period
+from pyedookit import PORTAL_TZ, Lesson, Period, SchoolEvent
 
 from custom_components.edookit.week import WeekLessons
 
@@ -62,3 +62,11 @@ def _build() -> WeekLessons:
 
 
 this_week = _build()
+
+KAMARAD = SchoolEvent(
+    "e1",
+    "1.B Můj velký kamarád",
+    datetime(2026, 10, 15, 10, 0, tzinfo=PORTAL_TZ),
+    datetime(2026, 10, 15, 11, 40, tzinfo=PORTAL_TZ),
+)
+VOLNO = SchoolEvent("e2", "Ředitelské volno", date(2026, 10, 22), date(2026, 10, 22))
