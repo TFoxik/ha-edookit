@@ -16,7 +16,7 @@ const STRINGS = {
     noLessons: "bez výuky",
     tapDetails: "klepněte pro detail",
     close: "Zavřít",
-    insteadOf: "Místo",
+    insteadOf: "Nahrazuje",
     description: "Popis",
     createdBy: "Vytvořil(a)",
     teacher: "Učitel",
@@ -37,7 +37,7 @@ const STRINGS = {
     noLessons: "no lessons",
     tapDetails: "tap for details",
     close: "Close",
-    insteadOf: "Instead of",
+    insteadOf: "Replaces",
     description: "Description",
     createdBy: "Created by",
     teacher: "Teacher",
@@ -81,6 +81,7 @@ const STYLE = `
     text-overflow: ellipsis; white-space: nowrap; }
   .lesson .room { font-size: 10px; color: var(--secondary-text-color); overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
+  .lesson.noroom .code { font-size: 28px; }
   .lesson.long .code { font-size: 11px; white-space: normal; overflow-wrap: anywhere;
     hyphens: auto; }
   .lesson.longer .code { font-size: 9px; }
@@ -110,6 +111,7 @@ const STYLE = `
     .day small { font-size: 9px; }
     .lesson { min-height: 36px; }
     .lesson .code { font-size: 15px; }
+    .lesson.noroom .code { font-size: 20px; }
     .lesson .room { font-size: 9px; }
     .lesson.long .code { font-size: 9px; }
     .lesson.longer .code { font-size: 8px; }
@@ -498,11 +500,13 @@ class EdookitTimetableCard extends HTMLElement {
     if (!lesson.code && text.length > 6) classes.push(text.length > 14 ? "longer" : "long");
     if (lesson.changed) classes.push("changed");
     if (lesson.cancelled) classes.push("cancelled");
+    const showRoom = this._config.show_room !== false;
+    if (!showRoom) classes.push("noroom");
 
     const tile = h("button", classes.join(" "));
     tile.type = "button";
     tile.append(h("div", "code", text));
-    if (lesson.room) tile.append(h("div", "room", lesson.room));
+    if (showRoom && lesson.room) tile.append(h("div", "room", lesson.room));
     const times = `${clockLabel(lesson.start)}–${clockLabel(lesson.end)}`;
     tile.title = [lesson.subject, times, lesson.teacher].filter(Boolean).join(" · ");
     tile.addEventListener("click", () =>
