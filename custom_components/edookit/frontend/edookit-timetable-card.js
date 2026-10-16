@@ -8,8 +8,6 @@ const STRINGS = {
     thisWeek: "Tento týden",
     nextWeek: "Příští týden",
     notLoaded: "Rozvrh zatím není načten",
-    projected:
-      "Rozvrh je odhad podle posledního známého týdne; suplování se objeví, až se týden načte",
     loading: "Načítám…",
     unavailable: "Rozvrh není dostupný, zkouším znovu",
     wholeDay: "Celý den",
@@ -29,8 +27,6 @@ const STRINGS = {
     thisWeek: "This week",
     nextWeek: "Next week",
     notLoaded: "Timetable not loaded yet",
-    projected:
-      "Lessons are copied from the last known week; substitutions appear once this week is loaded.",
     loading: "Loading…",
     unavailable: "Timetable unavailable, retrying",
     wholeDay: "Whole day",
@@ -103,8 +99,7 @@ const STYLE = `
   .event.edge { padding: 4px 2px; text-align: center; }
   .event.edge .etitle { font-size: 10px; }
   .event.edge .hint { display: none; }
-  .note, .status { font-size: 12px; color: var(--secondary-text-color); margin-top: 8px; }
-  .status { margin-top: 4px; }
+  .status { font-size: 12px; color: var(--secondary-text-color); margin-top: 4px; }
   @container (max-width: 480px) {
     .title { font-size: 15px; }
     .day { font-size: 12px; }
@@ -377,7 +372,6 @@ class EdookitTimetableCard extends HTMLElement {
       return;
     }
     this._body.append(this._renderGrid(week, t));
-    if (week.projected) this._body.append(h("div", "note", t.projected));
     if (this._retryTimer !== null) this._body.append(h("div", "status", t.unavailable));
   }
 

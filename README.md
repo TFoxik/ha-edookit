@@ -70,7 +70,7 @@ you flip by hand; the automatic choice returns at midnight.
 
 **Next week is a projection.** The portal's next-week navigation hasn't been
 worked out, so until that week starts the card repeats this week's lessons,
-with next week's real events on top. A note under the grid says so. A
+with next week's real events on top. A
 substitution or cancellation appears only once the week begins. The
 Timetable calendar entity never shows projected lessons, so automations are
 not affected.
