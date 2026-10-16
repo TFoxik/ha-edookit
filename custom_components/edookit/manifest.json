@@ -5,6 +5,9 @@
     "@TFoxik"
   ],
   "config_flow": true,
+  "dependencies": [
+    "websocket_api"
+  ],
   "documentation": "https://github.com/TFoxik/ha-edookit",
   "integration_type": "service",
   "iot_class": "cloud_polling",
