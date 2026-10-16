@@ -39,7 +39,8 @@ abbreviation and room in each tile. A school event that replaces lessons is
 drawn as one tile over those periods (a trip over periods 3-4), and an
 all-day event such as "Ředitelské volno" fills the whole day. Tap a tile for
 the details: teacher, room and "Učivo" for a lesson; time, the lessons it
-replaces and the description for an event.
+replaces and the description for an event. The details pop-up closes by
+itself after a minute, so a wall tablet is never left covered.
 
 There is nothing to install: Home Assistant loads the card with the
 integration. Add it to a dashboard (reload the browser once after the first
