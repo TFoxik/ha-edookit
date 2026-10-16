@@ -139,3 +139,29 @@ async def test_unload_entry(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_school_ends_is_the_end_of_todays_last_lesson(hass: HomeAssistant) -> None:
+    midnight = dt_util.start_of_local_day()
+
+    def at(hour: int, **kwargs: object) -> Lesson:
+        start = midnight + timedelta(hours=hour)
+        return Lesson(start=start, end=start + timedelta(minutes=45), subject="X", **kwargs)
+
+    await _setup(
+        hass,
+        [at(8), at(10), at(12, is_cancelled=True), at(24 + 13)],
+    )
+
+    state = hass.states.get("sensor.edookit_zs_example_school_ends")
+    assert state is not None
+    assert dt_util.parse_datetime(state.state) == midnight + timedelta(hours=10, minutes=45)
+
+
+async def test_school_ends_is_unknown_without_lessons_today(hass: HomeAssistant) -> None:
+    tomorrow = dt_util.start_of_local_day() + timedelta(days=1, hours=8)
+    await _setup(hass, [Lesson(start=tomorrow, end=tomorrow + timedelta(minutes=45), subject="X")])
+
+    state = hass.states.get("sensor.edookit_zs_example_school_ends")
+    assert state is not None
+    assert state.state == "unknown"

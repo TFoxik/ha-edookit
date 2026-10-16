@@ -23,6 +23,7 @@ Each account gets one **Edookit {school}** device:
 | Timetable (calendar) | on during a lesson | this week's lessons; cancelled/changed ones get `(zrušeno)`/`(změna)` in the title |
 | Next lesson (sensor) | subject | `start`, `end`, `room`, `teacher` |
 | Lessons today (sensor) | lessons that aren't cancelled | |
+| School ends (sensor) | end of today's last lesson that isn't cancelled; unknown on days without lessons | |
 | Timetable changed (event) | time of the last change | `event_type` (`lesson_cancelled`/`lesson_changed`), `subject`, `start`, `room`, `teacher` |
 | School events (calendar) | on during an event | trips, holidays and events from "Mé budoucí události" |
 | Payments due (sensor) | amount still to pay, in CZK | `paid`, `overpaid`, `unpaid_requests` |
