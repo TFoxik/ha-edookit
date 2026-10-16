@@ -12,12 +12,29 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="$ROOT/config"
 HASS="$ROOT/.venv/bin/hass"
 PID_FILE="$CONFIG/hass.pid"
+LOCK_FILE="$CONFIG/.ha_run.lock"
 OUT_FILE="$CONFIG/hass.out"
 LOG_FILE="$CONFIG/home-assistant.log"
 URL="http://localhost:8123"
 
+# HA records its own pid in .ha_run.lock, so an instance started some other
+# way, or one whose hass.pid went stale, is still found. hass.pid covers the
+# moment between launch and HA writing the lock.
+running_pid() {
+  local pid
+  for pid in \
+    "$(sed -n 's/.*"pid": *\([0-9][0-9]*\).*/\1/p' "$LOCK_FILE" 2>/dev/null)" \
+    "$(cat "$PID_FILE" 2>/dev/null)"; do
+    if [[ -n "$pid" ]] && ps -p "$pid" -o command= 2>/dev/null | grep -qE 'homeassistant|hass'; then
+      echo "$pid"
+      return
+    fi
+  done
+  return 1
+}
+
 is_running() {
-  [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+  running_pid >/dev/null
 }
 
 setup() {
@@ -69,11 +86,21 @@ EOF
 
 start() {
   if is_running; then
-    echo "Already running (pid $(cat "$PID_FILE")) at $URL"
+    echo "Already running (pid $(running_pid)) at $URL"
     return
   fi
   setup
-  nohup "$HASS" -c "$CONFIG" >"$OUT_FILE" 2>&1 &
+  # Exit as soon as HA returns: on Python 3.14 interpreter teardown segfaults
+  # in gc after a clean HA shutdown, and macOS shows a crash dialog each time.
+  nohup "$ROOT/.venv/bin/python" -c '
+import logging, os, sys
+from homeassistant.__main__ import main
+code = main()
+logging.shutdown()
+sys.stdout.flush()
+sys.stderr.flush()
+os._exit(code)
+' -c "$CONFIG" >"$OUT_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   echo "Started Home Assistant (pid $!)."
   echo "The first start installs the frontend and can take several minutes."
@@ -105,7 +132,7 @@ stop() {
     return
   fi
   local pid
-  pid="$(cat "$PID_FILE")"
+  pid="$(running_pid)"
   kill "$pid"
   echo -n "Stopping (pid $pid) "
   for _ in $(seq 1 30); do
@@ -126,7 +153,7 @@ stop() {
 
 status() {
   if is_running; then
-    echo "Running (pid $(cat "$PID_FILE"))."
+    echo "Running (pid $(running_pid))."
     if curl -fs -o /dev/null "$URL"; then
       echo "Web UI is up at $URL"
     else
