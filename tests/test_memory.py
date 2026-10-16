@@ -369,3 +369,34 @@ async def test_a_restarted_entry_starts_from_what_was_stored(
     memory = entry.runtime_data.memory
     assert [w.monday for w in memory.weeks()] == [date(2026, 10, 12)]
     assert [e.id for e in memory.events()] == ["e1"]
+
+
+async def test_a_holiday_week_is_remembered_as_loaded_and_empty(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, portal: Portal
+) -> None:
+    portal.timetable.return_value = week([], FIVE_PERIODS)
+    entry = await _setup(hass, freezer)
+    memory = entry.runtime_data.memory
+
+    current = build_payload(FRIDAY, memory.weeks(), memory.events())["weeks"][0]
+
+    assert current["loaded"] is True
+    assert current["projected"] is False
+    assert all(day["lessons"] == [] for day in current["days"])
+
+
+async def test_removing_the_entry_deletes_its_remembered_weeks(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    portal: Portal,
+    hass_storage: dict[str, object],
+) -> None:
+    entry = await _setup(hass, freezer)
+    await _flush_delayed_save(hass)
+    key = f"edookit.{entry.entry_id}.week"
+    assert key in hass_storage
+
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert key not in hass_storage

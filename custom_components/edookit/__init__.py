@@ -97,3 +97,7 @@ def _start_capture(
 
 async def async_unload_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> None:
+    await WeekMemory(hass, entry.entry_id).async_remove()
