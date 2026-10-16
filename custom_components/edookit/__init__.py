@@ -6,8 +6,10 @@ from pathlib import Path
 import aiohttp
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 from pyedookit import PORTAL_TZ, Session
 
@@ -18,8 +20,16 @@ from .data import EdookitConfigEntry, EdookitRuntimeData
 from .memory import WeekMemory
 from .school_coordinator import EdookitSchoolCoordinator
 from .session_manager import EdookitSessionManager
+from .websocket import async_register_websocket
 
 PLATFORMS = [Platform.CALENDAR, Platform.EVENT, Platform.SENSOR]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    async_register_websocket(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> bool:
