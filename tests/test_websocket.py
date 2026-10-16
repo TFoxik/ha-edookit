@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
@@ -208,22 +208,62 @@ async def test_unsubscribing_stops_the_pushes(
     await _assert_silent(ws)
 
 
-async def test_unloading_the_entry_ends_the_subscription(
+async def _midnight(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    freezer.move_to("2026-10-17 00:00:00+02:00")
+    async_fire_time_changed(hass, datetime(2026, 10, 16, 22, 0, 1, tzinfo=dt_util.UTC))
+    await hass.async_block_till_done()
+
+
+async def test_unloading_the_entry_ends_every_subscription_with_a_final_event(
     hass: HomeAssistant, hass_ws_client: WebSocketGenerator, freezer: FrozenDateTimeFactory
 ) -> None:
     entry = await _setup(hass)
     ws = await hass_ws_client(hass)
-    await _subscribe(ws, TIMETABLE)
+    await _subscribe(ws, TIMETABLE, 1)
+    await _subscribe(ws, TIMETABLE, 2)
     memory = entry.runtime_data.memory
+    listeners_seen_by_a_later_callback: list[int] = []
+    entry.async_on_state_change(
+        lambda: listeners_seen_by_a_later_callback.append(len(memory._listeners))
+    )
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
+    assert listeners_seen_by_a_later_callback[0] == 0
+    finals = [await ws.receive_json(), await ws.receive_json()]
+    assert sorted((m["id"], m["type"], m["event"]) for m in finals) == [
+        (1, "event", {"unloaded": True}),
+        (2, "event", {"unloaded": True}),
+    ]
+
     memory.observe_events([VOLNO], dt_util.now())
-    freezer.move_to("2026-10-17 00:00:00+02:00")
-    async_fire_time_changed(hass, datetime(2026, 10, 16, 22, 0, 1, tzinfo=dt_util.UTC))
-    await hass.async_block_till_done()
+    await _midnight(hass, freezer)
     await _assert_silent(ws)
+    assert memory._listeners == []
 
     await ws.close()
     await hass.async_block_till_done()
+
+
+async def test_closing_the_socket_tears_the_subscription_down(
+    hass: HomeAssistant, hass_ws_client: WebSocketGenerator, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await _setup(hass)
+    memory = entry.runtime_data.memory
+    ws = await hass_ws_client(hass)
+    timers: list[MagicMock] = []
+
+    def track(*args: Any, **kwargs: Any) -> MagicMock:
+        timers.append(MagicMock(wraps=async_track_point_in_utc_time(*args, **kwargs)))
+        return timers[-1]
+
+    with patch("custom_components.edookit.websocket.async_track_point_in_utc_time", track):
+        await _subscribe(ws, TIMETABLE)
+    assert len(memory._listeners) == 1
+
+    await ws.close()
+    await hass.async_block_till_done()
+
+    assert memory._listeners == []
+    timers[0].assert_called_once_with()
