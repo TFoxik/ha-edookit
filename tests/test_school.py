@@ -18,6 +18,7 @@ from pyedookit import (
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
+from tests.helpers import week
 
 SESSION = Session.from_cookies("zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"})
 EVENTS = [
@@ -53,7 +54,10 @@ async def _setup(hass: HomeAssistant, **patches: AsyncMock) -> MockConfigEntry:
     )
     entry.add_to_hass(hass)
     with (
-        patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_timetable_week",
+            new=AsyncMock(return_value=week([])),
+        ),
         patch(
             "pyedookit.client.EdookitClient.get_events",
             new=patches.get("get_events", AsyncMock(return_value=EVENTS)),

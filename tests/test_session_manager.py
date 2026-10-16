@@ -13,6 +13,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 from custom_components.edookit.session_manager import EdookitSessionManager
+from tests.helpers import week
 
 HOST = "zs-example.edookit.net"
 
@@ -100,7 +101,9 @@ async def test_entry_with_a_0_3_session_sets_up(hass: HomeAssistant) -> None:
     )
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_SCHOOL: "zs-example", CONF_SESSION: legacy})
     entry.add_to_hass(hass)
-    with patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])):
+    with patch(
+        "pyedookit.client.EdookitClient.get_timetable_week", new=AsyncMock(return_value=week([]))
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -112,7 +115,10 @@ async def test_each_entry_gets_its_own_cookieless_session(hass: HomeAssistant) -
     entry.add_to_hass(hass)
     with (
         patch("custom_components.edookit.async_create_clientsession") as create,
-        patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_timetable_week",
+            new=AsyncMock(return_value=week([])),
+        ),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()

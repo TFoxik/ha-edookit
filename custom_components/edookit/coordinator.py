@@ -6,7 +6,7 @@ from datetime import datetime
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from pyedookit import Lesson
+from pyedookit import Lesson, Period
 
 from .const import DEFAULT_UPDATE_INTERVAL, DOMAIN
 from .data import EdookitConfigEntry
@@ -22,6 +22,7 @@ class EdookitData:
     # trusted yet - see pyedookit's README for the open question. Only the
     # current week is fetched until that's sorted out.
     lessons: list[Lesson] = field(default_factory=list)
+    periods: list[Period] = field(default_factory=list)
     # Lessons that became changed/cancelled since the previous poll - what
     # the event entity fires on, so a single automation trigger works for
     # substitutions and cancellations alike instead of a poll-diff per entity.
@@ -49,10 +50,10 @@ class EdookitCoordinator(DataUpdateCoordinator[EdookitData]):
         self._previously_disrupted: set[tuple[datetime, str]] = set()
 
     async def _async_update_data(self) -> EdookitData:
-        lessons = sorted(
-            await self._session.async_call(lambda client: client.get_timetable(week_offset=0)),
-            key=lambda ls: ls.start,
+        timetable = await self._session.async_call(
+            lambda client: client.get_timetable_week(week_offset=0)
         )
+        lessons = sorted(timetable.lessons, key=lambda ls: ls.start)
 
         disrupted_now = {
             _disruption_key(lesson)
@@ -63,4 +64,6 @@ class EdookitCoordinator(DataUpdateCoordinator[EdookitData]):
         newly_disrupted = [lesson for lesson in lessons if _disruption_key(lesson) in new_keys]
         self._previously_disrupted = disrupted_now
 
-        return EdookitData(lessons=lessons, newly_disrupted=newly_disrupted)
+        return EdookitData(
+            lessons=lessons, periods=timetable.periods, newly_disrupted=newly_disrupted
+        )

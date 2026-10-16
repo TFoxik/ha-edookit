@@ -10,6 +10,7 @@ from pyedookit import AuthError, EdookitConnectionError, Session
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
+from tests.helpers import week
 
 FAKE_SESSION = Session.from_cookies(
     "zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"}
@@ -22,7 +23,9 @@ def _patch_login(**kwargs: object):
 
 
 def _patch_timetable():
-    return patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[]))
+    return patch(
+        "pyedookit.client.EdookitClient.get_timetable_week", new=AsyncMock(return_value=week([]))
+    )
 
 
 def _entry(hass: HomeAssistant) -> MockConfigEntry:
