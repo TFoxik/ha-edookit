@@ -3,7 +3,7 @@ name = "ha-edookit"
 version = "0.5.1"
 description = "Home Assistant integration for the Edookit parent portal"
 requires-python = ">=3.14"
-dependencies = ["pyedookit==0.5.0"]
+dependencies = ["pyedookit==0.5.1"]
 
 [project.optional-dependencies]
 test = [

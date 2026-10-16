@@ -122,8 +122,10 @@ manual install, copy `custom_components/edookit` into your
 - The timetable updates every 30 minutes; events and payments every 3 hours.
   If only the events or payments page fails, only those entities become
   unavailable.
-- The portal session is renewed silently using the Plus4U sign-in, which
-  lasts about 19 days. After that Home Assistant asks you to sign in again.
+- The portal session is renewed silently using the Plus4U sign-in, which is
+  set for 30 days. A renewal that fails, for example during a Plus4U or
+  portal outage, is retried on the next update; Home Assistant asks you to
+  sign in again only when Plus4U requires a new login.
 
 ## Examples
 
