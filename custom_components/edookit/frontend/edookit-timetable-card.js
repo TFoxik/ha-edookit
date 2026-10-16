@@ -161,6 +161,10 @@ function shortDate(iso) {
   return `${day}.${month}.`;
 }
 
+function defaultWeek(payload) {
+  return payload.default_week === 1 ? 1 : 0;
+}
+
 function clockLabel(hhmm) {
   return hhmm.replace(/^0/, "");
 }
@@ -319,7 +323,7 @@ class EdookitTimetableCard extends HTMLElement {
     if (!Array.isArray(event.weeks)) return;
     if (event.today !== this._lastToday) {
       this._lastToday = event.today;
-      this._week = event.default_week === 1 ? 1 : 0;
+      this._week = defaultWeek(event);
     }
     this._payload = event;
     this._render();
@@ -359,14 +363,16 @@ class EdookitTimetableCard extends HTMLElement {
     const t = STRINGS[this._language];
     this._body.replaceChildren();
 
-    const week = this._payload && this._payload.weeks[this._week];
+    const showHeader = !this._config || this._config.show_header !== false;
+    const index = showHeader || !this._payload ? this._week : defaultWeek(this._payload);
+    const week = this._payload && this._payload.weeks[index];
     if (!week) {
       const unavailable = this._retryTimer !== null;
       this._body.append(h("div", "status", unavailable ? t.unavailable : t.loading));
       return;
     }
 
-    this._body.append(this._renderHead(week, t));
+    if (showHeader) this._body.append(this._renderHead(week, t));
     if (!week.loaded || week.periods.length === 0) {
       this._body.append(h("div", "status", t.notLoaded));
       return;
