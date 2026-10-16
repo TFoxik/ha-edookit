@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.edookit.const import CONF_CAPTURE_PAGES, CONF_SCHOOL, CONF_SESSION, DOMAIN
+from tests.helpers import week
 
 SESSION = Session.from_cookies("zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"})
 
@@ -25,7 +26,9 @@ async def _setup(hass: HomeAssistant, options: dict | None = None) -> MockConfig
         options=options or {},
     )
     entry.add_to_hass(hass)
-    with patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])):
+    with patch(
+        "pyedookit.client.EdookitClient.get_timetable_week", new=AsyncMock(return_value=week([]))
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done(wait_background_tasks=True)
     return entry
@@ -38,7 +41,10 @@ async def test_options_flow_defaults_to_off_and_saves(hass: HomeAssistant) -> No
     assert result["type"] is FlowResultType.FORM
     fetch_page = AsyncMock(return_value="<p/>")
     with (
-        patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_timetable_week",
+            new=AsyncMock(return_value=week([])),
+        ),
         patch("pyedookit.client.EdookitClient.fetch_page", new=fetch_page),
     ):
         result = await hass.config_entries.options.async_configure(
@@ -95,7 +101,10 @@ async def test_capture_runs_daily_outside_the_school_update(hass: HomeAssistant)
     fetch_page = AsyncMock(return_value="<p/>")
     with (
         patch("pyedookit.client.EdookitClient.fetch_page", new=fetch_page),
-        patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_timetable_week",
+            new=AsyncMock(return_value=week([])),
+        ),
     ):
         await _setup(hass, {CONF_CAPTURE_PAGES: True})
         await hass.async_block_till_done(wait_background_tasks=True)
@@ -124,7 +133,10 @@ async def test_unload_cancels_the_capture_timer(hass: HomeAssistant) -> None:
     fetch_page = AsyncMock(return_value="<p/>")
     with (
         patch("pyedookit.client.EdookitClient.fetch_page", new=fetch_page),
-        patch("pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_timetable_week",
+            new=AsyncMock(return_value=week([])),
+        ),
     ):
         entry = await _setup(hass, {CONF_CAPTURE_PAGES: True})
         await hass.async_block_till_done(wait_background_tasks=True)

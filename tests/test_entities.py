@@ -13,6 +13,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 from custom_components.edookit.diagnostics import async_get_config_entry_diagnostics
+from tests.helpers import week
 
 FAKE_SESSION = Session.from_cookies(
     "zs-example", edookit={"PHPSESSID": "s"}, plus4u={"uoid.ps": "p"}
@@ -35,8 +36,8 @@ async def test_sensors_and_calendar_reflect_fetched_lessons(hass: HomeAssistant)
     ]
 
     with patch(
-        "pyedookit.client.EdookitClient.get_timetable",
-        new=AsyncMock(return_value=lessons),
+        "pyedookit.client.EdookitClient.get_timetable_week",
+        new=AsyncMock(return_value=week(lessons)),
     ):
         entry = _entry(hass)
         assert await async_setup_component(hass, DOMAIN, {})
@@ -66,7 +67,8 @@ async def test_sensors_and_calendar_reflect_fetched_lessons(hass: HomeAssistant)
 async def _setup(hass: HomeAssistant, lessons: list[Lesson]) -> MockConfigEntry:
     entry = _entry(hass)
     with patch(
-        "pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=lessons)
+        "pyedookit.client.EdookitClient.get_timetable_week",
+        new=AsyncMock(return_value=week(lessons)),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -103,7 +105,8 @@ async def test_event_fires_once_per_newly_cancelled_lesson(hass: HomeAssistant) 
     coordinator = entry.runtime_data.timetable
 
     with patch(
-        "pyedookit.client.EdookitClient.get_timetable", new=AsyncMock(return_value=[cancelled])
+        "pyedookit.client.EdookitClient.get_timetable_week",
+        new=AsyncMock(return_value=week([cancelled])),
     ):
         await coordinator.async_refresh()
         await hass.async_block_till_done()
