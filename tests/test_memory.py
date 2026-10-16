@@ -16,7 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 from custom_components.edookit.memory import WeekMemory
-from custom_components.edookit.week import build_payload
+from custom_components.edookit.week import WeekLessons, build_payload
 from tests.helpers import week
 from tests.week_data import FIVE_PERIODS, KAMARAD, VOLNO, this_week
 
@@ -156,11 +156,39 @@ async def test_weeks_before_last_week_are_pruned(hass: HomeAssistant) -> None:
     assert [w.monday for w in mem.weeks()] == [date(2026, 10, 5), date(2026, 10, 12)]
 
 
-async def test_an_empty_fetch_leaves_the_remembered_weeks_alone(hass: HomeAssistant) -> None:
+async def test_an_empty_fetch_remembers_an_empty_week_with_its_periods(
+    hass: HomeAssistant,
+) -> None:
+    mem = _memory(hass)
+    mem.remember_lessons([], FIVE_PERIODS, FRIDAY)
+    assert mem.weeks() == [WeekLessons(date(2026, 10, 12), [], FIVE_PERIODS)]
+
+
+async def test_an_empty_fetch_does_not_wipe_a_remembered_week(hass: HomeAssistant) -> None:
     mem = _memory(hass)
     mem.remember_lessons(this_week.lessons, this_week.periods, FRIDAY)
-    mem.remember_lessons([], [], FRIDAY)
+    listener = MagicMock()
+    mem.async_add_listener(listener)
+
+    mem.remember_lessons([], [], date(2026, 10, 17))
+
     assert [w.monday for w in mem.weeks()] == [date(2026, 10, 12)]
+    assert mem.weeks()[0].lessons == this_week.lessons
+    listener.assert_not_called()
+
+
+async def test_a_remembered_empty_week_is_loaded_not_projected(hass: HomeAssistant) -> None:
+    mem = _memory(hass)
+    mem.remember_lessons(this_week.lessons, this_week.periods, FRIDAY)
+    holiday = date(2026, 10, 19)
+    mem.remember_lessons([], FIVE_PERIODS, holiday)
+
+    payload = build_payload(holiday, mem.weeks(), mem.events())
+
+    first = payload["weeks"][0]
+    assert (first["monday"], first["loaded"], first["projected"]) == ("2026-10-19", True, False)
+    assert all(day["lessons"] == [] for day in first["days"])
+    assert [p["number"] for p in first["periods"]] == [1, 2, 3, 4, 5]
 
 
 async def test_nothing_remembered_means_an_unloaded_week(hass: HomeAssistant) -> None:

@@ -145,7 +145,10 @@ class WeekMemory:
                 self._weeks[monday] = WeekLessons(
                     monday, week_lessons, periods or derive_periods(week_lessons)
                 )
-            oldest = monday_of(today) - timedelta(days=7)
+            this_monday = monday_of(today)
+            if not lessons and this_monday not in self._weeks:
+                self._weeks[this_monday] = WeekLessons(this_monday, [], periods)
+            oldest = this_monday - timedelta(days=7)
             self._weeks = {m: w for m, w in self._weeks.items() if m >= oldest}
 
         self._change(mutate)
