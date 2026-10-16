@@ -129,6 +129,9 @@ class WeekMemory:
         self._weeks = {week.monday: week for week in weeks}
         self._events = {event.id: event for event in events}
 
+    async def async_remove(self) -> None:
+        await self._store.async_remove()
+
     def weeks(self) -> list[WeekLessons]:
         return sorted(self._weeks.values(), key=lambda week: week.monday)
 
