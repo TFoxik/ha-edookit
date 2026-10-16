@@ -606,9 +606,15 @@ class EdookitTimetableCard extends HTMLElement {
   }
 }
 
-if (!customElements.get(CARD_TAG)) {
-  customElements.define(CARD_TAG, EdookitTimetableCard);
-}
+// Extra modules run before the frontend boots. Its app bundle then swaps in a
+// scoped-registry polyfill that has never heard of elements defined earlier, so
+// the dashboard reports "Custom element doesn't exist". Waiting for the
+// frontend's own root element means we define through the polyfill.
+customElements.whenDefined("home-assistant").then(() => {
+  if (!customElements.get(CARD_TAG)) {
+    customElements.define(CARD_TAG, EdookitTimetableCard);
+  }
+});
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === CARD_TAG)) {
