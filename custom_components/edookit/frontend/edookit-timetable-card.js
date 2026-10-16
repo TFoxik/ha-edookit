@@ -9,7 +9,7 @@ const STRINGS = {
     nextWeek: "Příští týden",
     notLoaded: "Rozvrh zatím není načten",
     projected:
-      "Rozvrh příštího týdne je odhad podle tohoto; suplování se objeví, až týden začne",
+      "Rozvrh je odhad podle posledního známého týdne; suplování se objeví, až se týden načte",
     loading: "Načítám…",
     unavailable: "Rozvrh není dostupný, zkouším znovu",
     wholeDay: "Celý den",
@@ -30,7 +30,7 @@ const STRINGS = {
     nextWeek: "Next week",
     notLoaded: "Timetable not loaded yet",
     projected:
-      "Next week's lessons are copied from this week; substitutions appear once that week starts.",
+      "Lessons are copied from the last known week; substitutions appear once this week is loaded.",
     loading: "Loading…",
     unavailable: "Timetable unavailable, retrying",
     wholeDay: "Whole day",
@@ -169,8 +169,11 @@ function clockLabel(hhmm) {
 }
 
 class EdookitTimetableCard extends HTMLElement {
-  static getStubConfig() {
-    return { entity: "" };
+  static getStubConfig(hass) {
+    const entity = Object.keys((hass && hass.states) || {}).find(
+      (id) => id.startsWith("calendar.edookit_") && id.endsWith("_timetable"),
+    );
+    return { entity: entity || "" };
   }
 
   constructor() {
