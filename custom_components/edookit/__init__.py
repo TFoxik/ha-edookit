@@ -17,6 +17,7 @@ from .capture import PageCapture
 from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_CAPTURE_PAGES, CONF_SESSION, DOMAIN
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
+from .frontend_card import async_register_card
 from .memory import WeekMemory
 from .school_coordinator import EdookitSchoolCoordinator
 from .session_manager import EdookitSessionManager
@@ -29,6 +30,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async_register_websocket(hass)
+    await async_register_card(hass)
     return True
 
 
