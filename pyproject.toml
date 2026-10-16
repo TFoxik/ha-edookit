@@ -9,6 +9,9 @@ dependencies = ["pyedookit==0.5.0"]
 test = [
     # Pins pytest, pytest-asyncio and homeassistant itself.
     "pytest-homeassistant-custom-component==0.13.371",
+    # The card needs the frontend integration, whose requirement HA doesn't
+    # install in tests. Keep it equal to that HA version's frontend manifest pin.
+    "home-assistant-frontend==20260930.2",
     "ruff>=0.17",
     "mypy>=2.4",
 ]
