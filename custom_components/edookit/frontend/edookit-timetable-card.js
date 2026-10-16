@@ -126,6 +126,11 @@ class EdookitTimetableCard extends HTMLElement {
     this._subscribing = false;
     this._retryTimer = null;
     this._generation = 0;
+    this._connection = null;
+    this._onReady = () => {
+      this._teardown();
+      this._ensureSubscribed();
+    };
     this._language = null;
 
     const style = h("style");
@@ -153,6 +158,7 @@ class EdookitTimetableCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._watchConnection();
     const language = this._resolveLanguage();
     if (language !== this._language) this._render();
     this._ensureSubscribed();
@@ -164,12 +170,34 @@ class EdookitTimetableCard extends HTMLElement {
 
   connectedCallback() {
     this._connected = true;
+    this._watchConnection();
     this._ensureSubscribed();
   }
 
   disconnectedCallback() {
     this._connected = false;
+    this._unwatchConnection();
     this._teardown();
+  }
+
+  // The websocket library re-sends old subscriptions after a reconnect without
+  // handling rejection, so a restarting HA (unknown_command, not_found) would
+  // leave the card frozen. Subscribe with resubscribe: false and redo it on "ready".
+  _watchConnection() {
+    const connection = this._hass && this._hass.connection;
+    if (!this._connected || connection === this._connection) return;
+    const replaced = this._connection !== null;
+    this._unwatchConnection();
+    if (connection && typeof connection.addEventListener === "function") {
+      connection.addEventListener("ready", this._onReady);
+      this._connection = connection;
+    }
+    if (replaced) this._teardown();
+  }
+
+  _unwatchConnection() {
+    if (this._connection) this._connection.removeEventListener("ready", this._onReady);
+    this._connection = null;
   }
 
   _resolveLanguage() {
@@ -191,10 +219,11 @@ class EdookitTimetableCard extends HTMLElement {
     this._subscribing = true;
     let pending;
     try {
-      pending = this._hass.connection.subscribeMessage((event) => this._onEvent(generation, event), {
-        type: "edookit/week/subscribe",
-        entity_id: this._config.entity,
-      });
+      pending = this._hass.connection.subscribeMessage(
+        (event) => this._onEvent(generation, event),
+        { type: "edookit/week/subscribe", entity_id: this._config.entity },
+        { resubscribe: false },
+      );
     } catch (err) {
       pending = Promise.reject(err);
     }
