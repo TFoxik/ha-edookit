@@ -61,6 +61,8 @@ show_header: false # optional
 | `language` | `cs` or `en`. By default the card follows each viewer's Home Assistant language: Czech for `cs`, English for anything else. Subjects, events and teachers are the portal's own text and are never translated. |
 | `show_room` | `false` hides the room on the tiles and shows the subject abbreviation larger, for reading from across a room. The room is still in the details when you tap a lesson. Default `true`. |
 | `show_header` | `false` hides the date and the **This week** / **Next week** buttons, leaving just the grid. The card then always shows the automatic week: this week from Monday to Friday, next week from Saturday 00:00. Default `true`. |
+| `show_periods` | `false` hides the top row of period numbers and start times. Default `true`. |
+| `show_days` | `false` hides the first column of weekdays and dates; today's row is then marked with a faint band instead. Default `true`. |
 
 Events use purple, the colour of the school events calendar. Change it with
 the `--edookit-event-color` CSS variable, for example in a theme or a
@@ -98,6 +100,9 @@ overlays:
       type: custom:edookit-timetable-card
       entity: calendar.edookit_zs_example_timetable
 ```
+
+For a small overlay, `show_header: false`, `show_periods: false` and
+`show_days: false` leave only the lesson tiles.
 
 ## Installation
 
