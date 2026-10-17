@@ -60,7 +60,7 @@ const STYLE = `
     cursor: pointer; }
   .switch button[aria-pressed="true"] { background: var(--primary-color);
     border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
-  .grid { display: grid; gap: 4px; }
+  .grid { display: grid; --gap: 4px; gap: var(--gap); }
   .period-head { grid-row: 1; align-self: end; font-size: 10px; line-height: 1.2; text-align: center;
     color: var(--secondary-text-color); }
   .period-head b { display: block; font-size: 12px; color: var(--primary-text-color); }
@@ -68,6 +68,9 @@ const STYLE = `
   .day small { display: block; font-weight: 400; font-size: 10px;
     color: var(--secondary-text-color); }
   .day.today, .day.today small { color: var(--primary-color); }
+  .today-row { grid-column: 1 / -1; margin: calc(-1 * var(--gap)); border-radius: 12px;
+    background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 55%, transparent); }
   .cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .lesson { font: inherit; color: inherit; cursor: pointer; width: 100%; flex: 1; display: flex; flex-direction: column; justify-content: center;
     min-width: 0; min-height: 40px; box-sizing: border-box; padding: 4px 2px; text-align: center;
@@ -403,35 +406,49 @@ class EdookitTimetableCard extends HTMLElement {
   // event tiles can be added to a day row without touching the lessons.
   _renderGrid(week, t) {
     const grid = h("div", "grid");
+    const showPeriods = this._config.show_periods !== false;
+    const showDays = this._config.show_days !== false;
     const events = week.days.flatMap((day) => day.events);
     const hasBefore = events.some((event) => event.edge === "before");
     const hasAfter = events.some((event) => event.edge === "after");
-    const firstColumn = hasBefore ? 3 : 2;
-    const columnOf = new Map(week.periods.map((p, index) => [p.number, index + firstColumn]));
-    const beforeColumn = 2;
-    const afterColumn = week.periods.length + firstColumn;
-
-    const tracks = ["auto"];
+    const tracks = showDays ? ["auto"] : [];
+    const beforeColumn = tracks.length + 1;
     if (hasBefore) tracks.push(EDGE_TRACK);
+    const firstColumn = tracks.length + 1;
     tracks.push(`repeat(${week.periods.length}, minmax(0, 1fr))`);
     if (hasAfter) tracks.push(EDGE_TRACK);
     grid.style.gridTemplateColumns = tracks.join(" ");
-    grid.style.gridTemplateRows = `auto repeat(${week.days.length}, minmax(46px, auto))`;
+    const columnOf = new Map(week.periods.map((p, index) => [p.number, index + firstColumn]));
+    const afterColumn = week.periods.length + firstColumn;
 
-    week.periods.forEach((period) => {
-      const head = h("div", "period-head");
-      head.append(h("b", "", String(period.number)), document.createTextNode(clockLabel(period.start)));
-      head.style.gridColumn = String(columnOf.get(period.number));
-      grid.append(head);
-    });
+    const rows = showPeriods ? ["auto"] : [];
+    const firstRow = rows.length + 1;
+    rows.push(`repeat(${week.days.length}, minmax(46px, auto))`);
+    grid.style.gridTemplateRows = rows.join(" ");
+
+    if (showPeriods) {
+      week.periods.forEach((period) => {
+        const head = h("div", "period-head");
+        head.append(h("b", "", String(period.number)), document.createTextNode(clockLabel(period.start)));
+        head.style.gridColumn = String(columnOf.get(period.number));
+        grid.append(head);
+      });
+    }
 
     week.days.forEach((day, index) => {
-      const row = index + 2;
-      const label = h("div", day.date === this._payload.today ? "day today" : "day", t.days[index]);
-      label.append(h("small", "", shortDate(day.date)));
-      label.style.gridRow = String(row);
-      label.style.gridColumn = "1";
-      grid.append(label);
+      const row = index + firstRow;
+      const isToday = day.date === this._payload.today;
+      if (showDays) {
+        const label = h("div", isToday ? "day today" : "day", t.days[index]);
+        label.append(h("small", "", shortDate(day.date)));
+        label.style.gridRow = String(row);
+        label.style.gridColumn = "1";
+        grid.append(label);
+      } else if (isToday) {
+        const band = h("div", "today-row");
+        band.style.gridRow = String(row);
+        grid.append(band);
+      }
 
       const place = (column, tiles) => {
         const cell = h("div", "cell");
@@ -458,7 +475,7 @@ class EdookitTimetableCard extends HTMLElement {
       });
 
       const allDay = day.events.filter((event) => event.all_day);
-      if (allDay.length) place("2 / -1", allDay.map((event) => eventTile(event, false)));
+      if (allDay.length) place(`${beforeColumn} / -1`, allDay.map((event) => eventTile(event, false)));
 
       const timed = day.events.filter((event) => !event.all_day);
       const before = timed.filter((event) => event.edge === "before");

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -11,14 +11,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL
 from homeassistant.core import HomeAssistant
-from pyedookit import Session
+from pyedookit import PORTAL_TZ, SchoolEvent, Session
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
 from custom_components.edookit.week import build_payload
 from tests.helpers import week
-from tests.week_data import this_week
+from tests.week_data import KAMARAD, this_week
 
 CARD_JS = (
     Path(__file__).parent.parent / "custom_components/edookit/frontend/edookit-timetable-card.js"
@@ -64,13 +64,15 @@ THIS_WEEK_DAYS = ["12.10.", "13.10.", "14.10.", "15.10.", "16.10."]
 NEXT_WEEK_DAYS = ["19.10.", "20.10.", "21.10.", "22.10.", "23.10."]
 
 
-def _render(config: dict[str, Any], *days: date) -> dict[str, Any]:
+def _render(
+    config: dict[str, Any], *days: date, events: list[SchoolEvent] | None = None
+) -> dict[str, Any]:
     node = shutil.which("node")
     if node is None:
         pytest.skip("node not installed")
-    events = [build_payload(day, [this_week], []) for day in days]
+    payloads = [build_payload(day, [this_week], events or []) for day in days]
     stdin = json.dumps(
-        {"config": {"entity": "calendar.edookit_x_timetable", **config}, "events": events}
+        {"config": {"entity": "calendar.edookit_x_timetable", **config}, "events": payloads}
     )
     result = subprocess.run(
         [node, str(HARNESS_JS)], input=stdin, capture_output=True, text=True, check=True
@@ -101,3 +103,70 @@ def test_card_without_header_shows_next_week_on_saturday() -> None:
 
 def test_card_without_header_moves_to_next_week_at_saturday_midnight() -> None:
     assert _render({"show_header": False}, FRIDAY, SATURDAY)["days"] == NEXT_WEEK_DAYS
+
+
+def _at(hour: int, minute: int, day: int) -> datetime:
+    return datetime(2026, 10, day, hour, minute, tzinfo=PORTAL_TZ)
+
+
+# One of each tile placement: before school, after school, spanning periods, all day.
+EVERY_PLACEMENT = [
+    SchoolEvent("e1", "Družina", _at(7, 0, 12), _at(7, 45, 12)),
+    SchoolEvent("e2", "Kroužek", _at(14, 0, 14), _at(16, 0, 14)),
+    KAMARAD,
+    SchoolEvent("e4", "Ředitelské volno", date(2026, 10, 16), date(2026, 10, 16)),
+]
+
+
+def _shifted(line: str) -> str:
+    return " / ".join(str(int(part) - 1) if int(part) > 0 else part for part in line.split(" / "))
+
+
+def test_card_shows_period_and_day_labels_by_default() -> None:
+    shown = _render({}, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert shown["periodHeads"] == len(this_week.periods)
+    assert shown["days"] == THIS_WEEK_DAYS
+    assert shown["columns"].startswith("auto ")
+    assert shown["rows"].startswith("auto ")
+
+
+def test_card_without_periods_drops_the_top_row() -> None:
+    full = _render({}, WEDNESDAY, events=EVERY_PLACEMENT)
+    shown = _render({"show_periods": False}, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert shown["periodHeads"] == 0
+    assert shown["days"] == THIS_WEEK_DAYS
+    assert not shown["rows"].startswith("auto ")
+    assert shown["cells"] == [[_shifted(row), column] for row, column in full["cells"]]
+
+
+def test_card_without_days_drops_the_first_column() -> None:
+    full = _render({}, WEDNESDAY, events=EVERY_PLACEMENT)
+    shown = _render({"show_days": False}, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert shown["days"] == []
+    assert shown["periodHeads"] == len(this_week.periods)
+    assert not shown["columns"].startswith("auto ")
+    assert shown["cells"] == [[row, _shifted(column)] for row, column in full["cells"]]
+
+
+def test_card_can_show_the_lessons_alone() -> None:
+    config = {"show_header": False, "show_periods": False, "show_days": False}
+    shown = _render(config, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert (shown["head"], shown["periodHeads"], shown["days"]) == (False, 0, [])
+    assert shown["cells"]
+
+
+def test_card_without_days_marks_today_with_a_row_band() -> None:
+    assert _render({"show_days": False}, WEDNESDAY)["todayRows"] == ["4"]
+    assert _render({"show_days": False, "show_periods": False}, WEDNESDAY)["todayRows"] == ["3"]
+
+
+def test_card_with_days_marks_today_on_the_label_only() -> None:
+    assert _render({}, WEDNESDAY)["todayRows"] == []
+
+
+def test_card_without_days_marks_no_row_when_today_is_not_shown() -> None:
+    assert _render({"show_days": False}, SATURDAY)["todayRows"] == []

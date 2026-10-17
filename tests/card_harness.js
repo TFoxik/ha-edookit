@@ -117,6 +117,7 @@ async function main() {
 
   const root = card.shadowRoot;
   const titles = root.findAll(hasClass("title"));
+  const grids = root.findAll(hasClass("grid"));
   console.log(
     JSON.stringify({
       head: root.findAll(hasClass("head")).length > 0,
@@ -127,6 +128,11 @@ async function main() {
         .findAll(hasClass("day"))
         .map((day) => day.children.find((c) => c.tagName === "small").textContent),
       status: root.findAll(hasClass("status")).map((node) => node.textContent),
+      periodHeads: root.findAll(hasClass("period-head")).length,
+      columns: grids.length ? grids[0].style.gridTemplateColumns : null,
+      rows: grids.length ? grids[0].style.gridTemplateRows : null,
+      todayRows: root.findAll(hasClass("today-row")).map((band) => band.style.gridRow),
+      cells: root.findAll(hasClass("cell")).map((cell) => [cell.style.gridRow, cell.style.gridColumn]),
     }),
   );
 }
