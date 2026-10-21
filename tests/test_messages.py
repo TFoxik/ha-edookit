@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
@@ -32,11 +33,14 @@ def summary(message_id: int, unread: bool, subject: str = "Předmět") -> Messag
 INBOX = [summary(9003, True), summary(9002, True), summary(9001, False)]
 
 
-async def setup_entry(hass: HomeAssistant, get_inbox: AsyncMock) -> MockConfigEntry:
+async def setup_entry(
+    hass: HomeAssistant, get_inbox: AsyncMock, options: dict[str, Any] | None = None
+) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="zs-example:user@example.com",
         data={CONF_SCHOOL: "zs-example", CONF_SESSION: SESSION.to_json()},
+        options=options or {},
     )
     entry.add_to_hass(hass)
     with (
@@ -101,4 +105,5 @@ async def test_diagnostics_has_counts_but_no_message_text(hass: HomeAssistant) -
     data = await async_get_config_entry_diagnostics(hass, entry)
 
     assert (data["message_count"], data["unread_message_count"]) == (3, 2)
+    assert data["messages_admin_only"] is False
     assert "Předmět" not in json.dumps(data, default=str)

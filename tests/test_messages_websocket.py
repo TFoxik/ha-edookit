@@ -12,6 +12,7 @@ from pyedookit import PORTAL_TZ, EdookitConnectionError, Message
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
+from custom_components.edookit.const import CONF_MESSAGES_ADMIN_ONLY
 from tests.helpers import week
 from tests.test_messages import INBOX, UNREAD, setup_entry, summary
 
@@ -207,3 +208,45 @@ async def test_subscribe_pushes_again_at_the_next_prague_midnight(
     events = [(await ws.receive_json())["event"] for _ in range(2)]
     assert {e["today"] for e in events} == {"2026-10-22"}
     assert {e["unread"] for e in events} == {2}
+
+
+async def test_admin_only_option_refuses_a_non_admin_without_a_portal_request(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    hass_read_only_access_token: str,
+    get_message: AsyncMock,
+) -> None:
+    await setup_entry(hass, AsyncMock(return_value=INBOX), {CONF_MESSAGES_ADMIN_ONLY: True})
+    ws = await hass_ws_client(hass, hass_read_only_access_token)
+
+    result = await _get(ws, 9003)
+
+    assert result["success"] is False
+    assert result["error"]["code"] == "unauthorized"
+    get_message.assert_not_awaited()
+    assert hass.states.get(UNREAD).state == "2"
+
+
+async def test_admin_only_option_still_lets_an_admin_open(
+    hass: HomeAssistant, hass_ws_client: WebSocketGenerator, get_message: AsyncMock
+) -> None:
+    await setup_entry(hass, AsyncMock(return_value=INBOX), {CONF_MESSAGES_ADMIN_ONLY: True})
+    ws = await hass_ws_client(hass)
+
+    result = await _get(ws, 9003)
+
+    assert result["success"] is True
+
+
+async def test_without_the_option_a_non_admin_can_open(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    hass_read_only_access_token: str,
+    get_message: AsyncMock,
+) -> None:
+    await setup_entry(hass, AsyncMock(return_value=INBOX))
+    ws = await hass_ws_client(hass, hass_read_only_access_token)
+
+    result = await _get(ws, 9003)
+
+    assert result["success"] is True

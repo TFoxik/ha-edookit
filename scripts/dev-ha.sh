@@ -93,8 +93,9 @@ start() {
   # Exit as soon as HA returns: on Python 3.14 interpreter teardown segfaults
   # in gc after a clean HA shutdown, and macOS shows a crash dialog each time.
   # --skip-pip-packages: HA would otherwise replace the editable ../pyedookit
-  # with the PyPI version the manifest pins.
-  nohup "$ROOT/.venv/bin/python" -c '
+  # with the PyPI version the manifest pins. EDOOKIT_CAPTURE_PAGES turns on
+  # the development-only page capture (saves to config/edookit_captures/).
+  EDOOKIT_CAPTURE_PAGES=1 nohup "$ROOT/.venv/bin/python" -c '
 import logging, os, sys
 from homeassistant.__main__ import main
 code = main()

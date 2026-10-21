@@ -350,3 +350,11 @@ def test_every_style_opens_messages_inline() -> None:
     for style in ("classic", "minimal", "modern"):
         out = _render({"style": style}, ws={"9003": _message(BODY)}, clicks=["row:9003"])
         assert len(_find(out, _cls("message"))) == 1, style
+
+
+def test_refused_open_says_only_admins_can_open_messages() -> None:
+    out = _render(ws={"9003": {"error": {"code": "unauthorized"}}}, clicks=["row:9003"])
+
+    assert [_text(n) for n in _find(out, _cls("error"))] == [
+        "Zprávy může otevírat jen správce Home Assistantu."
+    ]

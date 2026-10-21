@@ -7,12 +7,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pyedookit import Payments
 
+from custom_components.edookit.const import CAPTURE_ENV
+
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
+
+
+@pytest.fixture(autouse=True)
+def no_dev_page_capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A shell that exported the dev switch must not turn capture on in tests.
+    monkeypatch.setenv(CAPTURE_ENV, "0")
 
 
 @pytest.fixture(autouse=True)

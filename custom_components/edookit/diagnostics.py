@@ -5,7 +5,8 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_CAPTURE_PAGES, CONF_SCHOOL, CONF_SESSION
+from .capture import capture_enabled
+from .const import CONF_MESSAGES_ADMIN_ONLY, CONF_SCHOOL, CONF_SESSION
 from .data import EdookitConfigEntry
 
 TO_REDACT = {CONF_SESSION, CONF_SCHOOL}
@@ -21,7 +22,8 @@ async def async_get_config_entry_diagnostics(
         "last_update_success": coordinator.last_update_success,
         "lesson_count": len(coordinator.data.lessons),
         "school_last_update_success": runtime.school.last_update_success,
-        "capture_enabled": entry.options.get(CONF_CAPTURE_PAGES, False),
+        "capture_enabled": capture_enabled(),
+        "messages_admin_only": entry.options.get(CONF_MESSAGES_ADMIN_ONLY, False),
         "event_count": len(runtime.school.data.events) if runtime.school.data else 0,
         "message_count": len(runtime.messages.data or []),
         "unread_message_count": sum(m.unread for m in runtime.messages.data or []),

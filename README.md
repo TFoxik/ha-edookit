@@ -135,6 +135,13 @@ show_header: true   # optional
 
 The unread count appears in the header only while something is unread.
 
+Every Home Assistant user who can see the dashboard can open messages, the
+same as the other Edookit data. To limit that, turn on **Only administrators
+can open messages** under **Configure** on the integration: other users then
+still see the list with subjects and previews, but opening a message (its
+full text, which also marks it read on the portal) is refused for them. The
+card can't enforce this itself; Home Assistant checks it.
+
 Only messages are shown; events, grades and guidance items in Schránka are
 not. The text is shown as plain formatted text: images, colours and tables
 in a message are dropped, and nothing in a message can run code in Home
@@ -236,18 +243,6 @@ actions:
   attributes; the card fetches them on demand.
 - Diagnostics redact the session and the school.
 
-### Page capture (off by default)
-
-**Configure** on the integration has one option: **Save pages with new
-content for development**. It watches the homework, tests and
-consents pages, which have no entities yet. When one of them changes, it
-saves the page to `config/edookit_captures/` (readable only by the owner) and
-shows a notification.
-
-Sharing such a file in an issue, with names removed, lets support for that
-page be built. The files contain personal data, so leave the option off
-unless you want to help.
-
 ## Troubleshooting
 
 - **"Invalid username or password"** can also mean a wrong school subdomain.
@@ -269,8 +264,8 @@ unless you want to help.
 ## Removal
 
 Delete the entry in **Settings → Devices & services → Edookit**, then remove
-**Edookit** in HACS and restart. If page capture was on, also delete
-`config/edookit_captures/`.
+**Edookit** in HACS and restart. If you turned on page capture in a version
+before 0.8.0, also delete `config/edookit_captures/`.
 
 ## Development
 
@@ -286,6 +281,13 @@ pytest && ruff check . && mypy custom_components
 ```
 
 `scripts/dev-ha.sh start` runs a local Home Assistant with the integration
-loaded from the working copy. Progress against the
+loaded from the working copy and the local pyedookit. It also sets
+`EDOOKIT_CAPTURE_PAGES=1`, which turns on page capture: once a day the
+homework, tests and consents pages, which have no parser yet, are fetched, and
+when their content changes the page is saved to `config/edookit_captures/` and
+a notification appears. Those files are real markup to build parsers from;
+they contain personal data. The switch is not offered to users.
+
+Progress against the
 [Integration Quality Scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/)
 is tracked in `custom_components/edookit/quality_scale.yaml`.
