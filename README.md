@@ -27,6 +27,7 @@ Each account gets one **Edookit {school}** device:
 | Timetable changed (event) | time of the last change | `event_type` (`lesson_cancelled`/`lesson_changed`), `subject`, `start`, `room`, `teacher` |
 | School events (calendar) | on during an event | trips, holidays and events from "Mé budoucí události" |
 | Payments due (sensor) | amount still to pay, in CZK | `paid`, `overpaid`, `unpaid_requests` |
+| Unread messages (sensor) | unread messages in Schránka | |
 
 Entity IDs look like `sensor.edookit_<school>_next_lesson`. The event fires
 for lessons that become cancelled or changed while Home Assistant is
@@ -110,6 +111,35 @@ overlays:
 For a small overlay, `show_header: false`, `show_periods: false` and
 `show_days: false` leave only the lesson tiles.
 
+## Messages card
+
+The newest messages from Schránka, with an orange dot on unread ones and the
+unread count in the header. Tap a message to read it in full: subject,
+sender, recipients, time, and the text with its bold, italics, lists and
+links. **Opening a message in Home Assistant is expected to mark it read on
+the portal**, the same as opening it there (not yet confirmed, see
+[Limitations](#limitations)).
+
+```yaml
+type: custom:edookit-messages-card
+entity: sensor.edookit_zs_example_unread_messages
+style: classic      # classic, minimal (one line each) or modern (tiles with initials)
+open: inline        # inline (in the card) or popup; default inline
+max_messages: 5     # optional; default 5
+unread_only: false  # optional; list only unread messages
+show_preview: true  # optional; false hides the first line of the text
+compact: false      # optional; tighter rows
+language: cs        # optional; default = your Home Assistant language
+show_header: true   # optional
+```
+
+The unread count appears in the header only while something is unread.
+
+Only messages are shown; events, grades and guidance items in Schránka are
+not. The text is shown as plain formatted text: images, colours and tables
+in a message are dropped, and nothing in a message can run code in Home
+Assistant.
+
 ## Installation
 
 Requires Home Assistant 2026.9 or newer.
@@ -130,7 +160,9 @@ manual install, copy `custom_components/edookit` into your
 
 ## How it updates
 
-- The timetable updates every 30 minutes; events and payments every 3 hours.
+- The timetable and the message list update every 30 minutes; events and
+  payments every 3 hours. A message's full text is fetched only when you
+  open it on the card.
   If only the events or payments page fails, only those entities become
   unavailable.
 - The portal session is renewed silently using the Plus4U sign-in, which is
@@ -178,8 +210,12 @@ actions:
 
 ## Limitations
 
-- **Supported:** timetable, school events and payments. Grades, attendance,
-  homework, tests, messages and consents are not.
+- **Supported:** timetable, school events, payments and messages. Grades,
+  attendance, homework, tests and consents are not.
+- **Unread messages not yet seen on a real portal:** the unread marker comes
+  from the portal's sample message, and that opening a message marks it read
+  is assumed, not observed. If a new message doesn't show as unread, or turns
+  unread again about 30 minutes after you opened it, please open an issue.
 - **Next week is a copy of this week:** the portal's next-week navigation
   hasn't been worked out, so the card projects it (see
   [Weekly timetable card](#weekly-timetable-card)). Schools that alternate
@@ -196,13 +232,14 @@ actions:
 - The password is never stored. The config entry holds the portal session
   cookies, as any Home Assistant integration with a login does.
 - Payment request titles (`unpaid_requests`) aren't written to the recorder's
-  history.
+  history. Message subjects and text are never stored in entity states or
+  attributes; the card fetches them on demand.
 - Diagnostics redact the session and the school.
 
 ### Page capture (off by default)
 
 **Configure** on the integration has one option: **Save pages with new
-content for development**. It watches the homework, tests, messages and
+content for development**. It watches the homework, tests and
 consents pages, which have no entities yet. When one of them changes, it
 saves the page to `config/edookit_captures/` (readable only by the owner) and
 shows a notification.
