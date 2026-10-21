@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TypedDict
@@ -13,7 +14,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 from pyedookit import CAPTURE_PAGES, EdookitClient, content_fingerprint
 
-from .const import DOMAIN
+from .const import CAPTURE_ENV, DOMAIN
 from .session_manager import EdookitSessionManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,6 +24,12 @@ _STORAGE_VERSION = 1
 class _CaptureState(TypedDict):
     baselines: dict[str, str]
     captured_on: dict[str, str]
+
+
+def capture_enabled() -> bool:
+    """Page capture is a development aid: on only where HA was started with
+    EDOOKIT_CAPTURE_PAGES=1 (scripts/dev-ha.sh does), never offered to users."""
+    return os.environ.get(CAPTURE_ENV) == "1"
 
 
 def _page_fetcher(name: str) -> Callable[[EdookitClient], Awaitable[str]]:

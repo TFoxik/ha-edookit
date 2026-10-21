@@ -14,6 +14,7 @@ const STRINGS = {
     yesterday: "včera",
     loading: "Načítám…",
     error: "Zprávu se nepodařilo načíst, zkuste to znovu.",
+    adminOnly: "Zprávy může otevírat jen správce Home Assistantu.",
     unavailable: "Zprávy nejsou dostupné",
     from: "Od",
     to: "Komu",
@@ -29,6 +30,7 @@ const STRINGS = {
     yesterday: "yesterday",
     loading: "Loading…",
     error: "Couldn't load the message, try again.",
+    adminOnly: "Only Home Assistant administrators can open messages.",
     unavailable: "Messages unavailable",
     from: "From",
     to: "To",
@@ -475,7 +477,7 @@ class EdookitMessagesCard extends HTMLElement {
     if (opened.state === "loading") {
       container.append(h("div", "status", t.loading));
     } else if (opened.state === "error") {
-      container.append(h("div", "error", t.error));
+      container.append(h("div", "error", opened.code === "unauthorized" ? t.adminOnly : t.error));
     } else {
       container.append(this._renderMessage(opened.message, t));
     }
@@ -526,7 +528,7 @@ class EdookitMessagesCard extends HTMLElement {
       )
       .then(
         (message) => done({ id, state: "loaded", message }),
-        () => done({ id, state: "error" }),
+        (err) => done({ id, state: "error", code: err && err.code }),
       );
   }
 

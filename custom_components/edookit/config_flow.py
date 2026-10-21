@@ -17,7 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from pyedookit import AuthError, EdookitConnectionError, Session
 from pyedookit import login as edookit_login
 
-from .const import CONF_CAPTURE_PAGES, CONF_SCHOOL, CONF_SESSION, DOMAIN
+from .const import CONF_MESSAGES_ADMIN_ONLY, CONF_SCHOOL, CONF_SESSION, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ class EdookitConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-OPTIONS_SCHEMA = vol.Schema({vol.Required(CONF_CAPTURE_PAGES, default=False): bool})
+OPTIONS_SCHEMA = vol.Schema({vol.Required(CONF_MESSAGES_ADMIN_ONLY, default=False): bool})
 
 
 class EdookitOptionsFlow(OptionsFlowWithReload):

@@ -4,7 +4,8 @@ DOMAIN = "edookit"
 
 CONF_SCHOOL = "school"
 CONF_SESSION = "session"
-CONF_CAPTURE_PAGES = "capture_pages"
+CAPTURE_ENV = "EDOOKIT_CAPTURE_PAGES"
+CONF_MESSAGES_ADMIN_ONLY = "messages_admin_only"
 
 CAPTURE_DIR = "edookit_captures"
 

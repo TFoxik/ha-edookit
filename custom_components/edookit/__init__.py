@@ -13,8 +13,8 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 from pyedookit import PORTAL_TZ, Session
 
-from .capture import PageCapture
-from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_CAPTURE_PAGES, CONF_SESSION, DOMAIN
+from .capture import PageCapture, capture_enabled
+from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_SESSION, DOMAIN
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
 from .frontend_card import async_register_card
@@ -56,7 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
         timetable=timetable, school=school, memory=memory, messages=messages
     )
     _feed_memory(entry, timetable, school, memory)
-    if entry.options.get(CONF_CAPTURE_PAGES, False):
+    if capture_enabled():
         _start_capture(hass, entry, session)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

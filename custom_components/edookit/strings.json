@@ -38,10 +38,10 @@
       "init": {
         "title": "Edookit options",
         "data": {
-          "capture_pages": "Save pages with new content for development"
+          "messages_admin_only": "Only administrators can open messages"
         },
         "data_description": {
-          "capture_pages": "Watches the homework, tests and consents pages and saves a copy to edookit_captures in your config folder when their content changes, so support for them can be built. The saved files contain personal data."
+          "messages_admin_only": "Messages show their full text, and are marked read on the portal, only for Home Assistant administrators. Other users still see the list with subjects and previews."
         }
       }
     }

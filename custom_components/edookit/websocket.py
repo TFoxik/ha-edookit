@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 from pyedookit import PORTAL_TZ
 
-from .const import DOMAIN
+from .const import CONF_MESSAGES_ADMIN_ONLY, DOMAIN
 from .data import EdookitConfigEntry
 from .messages_payload import message_payload, summary_payload
 from .week import build_payload
@@ -112,6 +112,11 @@ async def _get_message(
     entry = _loaded_entry(hass, msg["entity_id"])
     if entry is None:
         connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
+        return
+    if entry.options.get(CONF_MESSAGES_ADMIN_ONLY, False) and not connection.user.is_admin:
+        connection.send_error(
+            msg["id"], websocket_api.ERR_UNAUTHORIZED, "Only administrators can open messages"
+        )
         return
     coordinator = entry.runtime_data.messages
     message_id: int = msg["message_id"]
