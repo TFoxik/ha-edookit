@@ -92,6 +92,8 @@ start() {
   setup
   # Exit as soon as HA returns: on Python 3.14 interpreter teardown segfaults
   # in gc after a clean HA shutdown, and macOS shows a crash dialog each time.
+  # --skip-pip-packages: HA would otherwise replace the editable ../pyedookit
+  # with the PyPI version the manifest pins.
   nohup "$ROOT/.venv/bin/python" -c '
 import logging, os, sys
 from homeassistant.__main__ import main
@@ -100,7 +102,7 @@ logging.shutdown()
 sys.stdout.flush()
 sys.stderr.flush()
 os._exit(code)
-' -c "$CONFIG" >"$OUT_FILE" 2>&1 &
+' -c "$CONFIG" --skip-pip-packages pyedookit >"$OUT_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   echo "Started Home Assistant (pid $!)."
   echo "The first start installs the frontend and can take several minutes."
