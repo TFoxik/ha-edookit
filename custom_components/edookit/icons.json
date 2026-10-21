@@ -25,6 +25,9 @@
       },
       "payments_due": {
         "default": "mdi:cash-clock"
+      },
+      "unread_messages": {
+        "default": "mdi:email"
       }
     }
   }

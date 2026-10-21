@@ -26,7 +26,7 @@ class FakeSession:
 
 
 def _pages(assignments: str = EMPTY) -> dict[str, str]:
-    return {"assignments": assignments, "exams": EMPTY, "inbox": EMPTY, "consents": EMPTY}
+    return {"assignments": assignments, "exams": EMPTY, "consents": EMPTY}
 
 
 def _notification(hass: HomeAssistant) -> dict:
@@ -106,7 +106,7 @@ async def test_failed_write_does_not_raise_or_stop_other_pages(
 ) -> None:
     capture = PageCapture(hass, "entry1", tmp_path)
     await capture.async_run(FakeSession(_pages()))
-    changed = {name: WITH_ITEM for name in ("assignments", "exams", "inbox", "consents")}
+    changed = {name: WITH_ITEM for name in ("assignments", "exams", "consents")}
 
     def flaky_write(path: Path, html: str) -> None:
         if path.name.startswith("assignments"):
@@ -116,7 +116,7 @@ async def test_failed_write_does_not_raise_or_stop_other_pages(
     with patch("custom_components.edookit.capture._write", side_effect=flaky_write):
         captured = await capture.async_run(FakeSession(changed))
 
-    assert captured == ["exams", "inbox", "consents"]
+    assert captured == ["exams", "consents"]
 
 
 async def test_error_pages_are_not_captured_and_keep_the_baseline(
