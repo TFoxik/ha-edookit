@@ -1,30 +1,39 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import probatio as vol
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_point_in_utc_time
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 from pyedookit import PORTAL_TZ
 
 from .const import DOMAIN
 from .data import EdookitConfigEntry
+from .messages_payload import message_payload, summary_payload
 from .week import build_payload
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, _subscribe_week)
+    websocket_api.async_register_command(hass, _subscribe_messages)
+    websocket_api.async_register_command(hass, _get_message)
 
 
 def _next_prague_midnight(now: datetime) -> datetime:
     tomorrow = now.astimezone(PORTAL_TZ).date() + timedelta(days=1)
     return datetime.combine(tomorrow, time.min, tzinfo=PORTAL_TZ).astimezone(dt_util.UTC)
+
+
+def _portal_today() -> date:
+    return dt_util.now().astimezone(PORTAL_TZ).date()
 
 
 def _loaded_entry(hass: HomeAssistant, entity_id: str) -> EdookitConfigEntry | None:
@@ -54,14 +63,87 @@ def _subscribe_week(
 
     memory = entry.runtime_data.memory
     msg_id = msg["id"]
-    cancel_midnight: CALLBACK_TYPE | None = None
-    stopped = False
 
     @callback
     def push() -> None:
-        today = dt_util.now().astimezone(PORTAL_TZ).date()
-        payload = build_payload(today, memory.weeks(), memory.events())
+        payload = build_payload(_portal_today(), memory.weeks(), memory.events())
         connection.send_message(websocket_api.event_message(msg_id, payload))
+
+    _hold_subscription(hass, connection, msg_id, entry, push, memory.async_add_listener(push))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "edookit/messages/subscribe",
+        vol.Required("entity_id"): cv.entity_id,
+    }
+)
+@callback
+def _subscribe_messages(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    entry = _loaded_entry(hass, msg["entity_id"])
+    if entry is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
+        return
+
+    coordinator = entry.runtime_data.messages
+    msg_id = msg["id"]
+
+    @callback
+    def push() -> None:
+        payload = summary_payload(coordinator.data, _portal_today())
+        connection.send_message(websocket_api.event_message(msg_id, payload))
+
+    _hold_subscription(hass, connection, msg_id, entry, push, coordinator.async_add_listener(push))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "edookit/messages/get",
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("message_id"): int,
+    }
+)
+@websocket_api.async_response
+async def _get_message(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    entry = _loaded_entry(hass, msg["entity_id"])
+    if entry is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
+        return
+    coordinator = entry.runtime_data.messages
+    message_id: int = msg["message_id"]
+    # Only ids the inbox listed: the card can't make HA fetch arbitrary pages.
+    if not any(summary.id == message_id for summary in coordinator.data or []):
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown message")
+        return
+    try:
+        message = await coordinator.session.async_call(
+            lambda client: client.get_message(message_id)
+        )
+    except (UpdateFailed, ConfigEntryAuthFailed) as err:
+        connection.send_error(msg["id"], "portal_error", str(err))
+        return
+    coordinator.async_mark_read(message_id)
+    connection.send_result(msg["id"], message_payload(message))
+
+
+@callback
+def _hold_subscription(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg_id: int,
+    entry: EdookitConfigEntry,
+    push: CALLBACK_TYPE,
+    unsubscribe_source: CALLBACK_TYPE,
+) -> None:
+    """Push now, on every source update and at each Prague midnight (the
+    payloads carry the portal's today), until the socket ends the
+    subscription or the entry unloads."""
+    stopped = False
+    cancel_midnight: CALLBACK_TYPE | None = None
 
     @callback
     def midnight(_: datetime) -> None:
@@ -76,14 +158,18 @@ def _subscribe_week(
         )
 
     @callback
+    def cleanup() -> None:
+        unsubscribe_source()
+        if cancel_midnight is not None:
+            cancel_midnight()
+
+    @callback
     def stop(*, from_state_change: bool = False) -> None:
         nonlocal stopped
         if stopped:
             return
         stopped = True
-        unsubscribe_memory()
-        if cancel_midnight is not None:
-            cancel_midnight()
+        cleanup()
         if from_state_change:
             # HA is iterating the state-change callbacks right now; removing
             # one mid-loop would make it skip the next subscription's.
@@ -99,7 +185,6 @@ def _subscribe_week(
         connection.send_message(websocket_api.event_message(msg_id, {"unloaded": True}))
         stop(from_state_change=True)
 
-    unsubscribe_memory = memory.async_add_listener(push)
     forget_entry_state = entry.async_on_state_change(entry_state_changed)
     schedule()
     connection.subscriptions[msg_id] = stop
