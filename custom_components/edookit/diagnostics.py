@@ -23,4 +23,6 @@ async def async_get_config_entry_diagnostics(
         "school_last_update_success": runtime.school.last_update_success,
         "capture_enabled": entry.options.get(CONF_CAPTURE_PAGES, False),
         "event_count": len(runtime.school.data.events) if runtime.school.data else 0,
+        "message_count": len(runtime.messages.data or []),
+        "unread_message_count": sum(m.unread for m in runtime.messages.data or []),
     }

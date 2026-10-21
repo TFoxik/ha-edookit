@@ -41,5 +41,6 @@ def mock_school_pages() -> Iterator[None]:
             "pyedookit.client.EdookitClient.get_payments",
             new=AsyncMock(return_value=NO_PAYMENTS),
         ),
+        patch("pyedookit.client.EdookitClient.get_inbox", new=AsyncMock(return_value=[])),
     ):
         yield

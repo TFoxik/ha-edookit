@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -13,6 +13,7 @@ from pyedookit import Lesson
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
 from .entity_helpers import EdookitEntity, lesson_attributes, next_lesson
+from .messages_coordinator import EdookitMessagesCoordinator
 from .school_coordinator import EdookitSchoolCoordinator
 
 PARALLEL_UPDATES = 0
@@ -28,6 +29,7 @@ async def async_setup_entry(
             EdookitLessonsTodaySensor(runtime.timetable, entry),
             EdookitSchoolEndsSensor(runtime.timetable, entry),
             EdookitPaymentsDueSensor(runtime.school, entry),
+            EdookitUnreadMessagesSensor(runtime.messages, entry),
         ]
     )
 
@@ -110,3 +112,12 @@ class EdookitPaymentsDueSensor(EdookitEntity[EdookitSchoolCoordinator], SensorEn
                 if not r.is_paid
             ],
         }
+
+
+class EdookitUnreadMessagesSensor(EdookitEntity[EdookitMessagesCoordinator], SensorEntity):
+    key = "unread_messages"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self) -> int:
+        return sum(message.unread for message in self.coordinator.data)

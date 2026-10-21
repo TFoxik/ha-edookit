@@ -75,7 +75,6 @@ async def test_capture_on_fetches_capture_pages(hass: HomeAssistant) -> None:
     assert {call.args[0] for call in fetch_page.await_args_list} == {
         "assignments",
         "exams",
-        "inbox",
         "consents",
     }
 
@@ -108,15 +107,15 @@ async def test_capture_runs_daily_outside_the_school_update(hass: HomeAssistant)
     ):
         await _setup(hass, {CONF_CAPTURE_PAGES: True})
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert fetch_page.await_count == 4
+        assert fetch_page.await_count == 3
 
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(hours=3, minutes=1))
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert fetch_page.await_count == 4  # the 3-hourly school update no longer captures
+        assert fetch_page.await_count == 3  # the 3-hourly school update no longer captures
 
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(days=1, minutes=1))
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert fetch_page.await_count == 8
+        assert fetch_page.await_count == 6
 
 
 async def test_capture_auth_failure_leaves_school_data_alone(hass: HomeAssistant) -> None:
@@ -145,4 +144,4 @@ async def test_unload_cancels_the_capture_timer(hass: HomeAssistant) -> None:
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(days=1, minutes=1))
         await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert fetch_page.await_count == 4
+    assert fetch_page.await_count == 3

@@ -19,6 +19,7 @@ from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
 from .frontend_card import async_register_card
 from .memory import WeekMemory
+from .messages_coordinator import EdookitMessagesCoordinator
 from .school_coordinator import EdookitSchoolCoordinator
 from .session_manager import EdookitSessionManager
 from .websocket import async_register_websocket
@@ -48,8 +49,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     # must not keep the timetable from loading. Auth failures still start
     # reauth from inside async_refresh().
     await school.async_refresh()
+    messages = EdookitMessagesCoordinator(hass, entry, session)
+    await messages.async_refresh()
 
-    entry.runtime_data = EdookitRuntimeData(timetable=timetable, school=school, memory=memory)
+    entry.runtime_data = EdookitRuntimeData(
+        timetable=timetable, school=school, memory=memory, messages=messages
+    )
     _feed_memory(entry, timetable, school, memory)
     if entry.options.get(CONF_CAPTURE_PAGES, False):
         _start_capture(hass, entry, session)
