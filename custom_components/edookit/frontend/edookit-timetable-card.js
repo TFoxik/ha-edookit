@@ -1,7 +1,15 @@
 const CARD_TAG = "edookit-timetable-card";
 const RETRY_MS = 30000;
 const DETAIL_TIMEOUT_MS = 60000;
+const MINUTE_MS = 60000;
 const EDGE_TRACK = "minmax(40px, 0.8fr)";
+const STYLES = ["classic", "glow"];
+const PRAGUE_CLOCK = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Prague",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
 
 const STRINGS = {
   cs: {
@@ -132,6 +140,39 @@ const STYLE = `
   .panel .close { font: inherit; margin-top: 8px; padding: 0 16px; min-height: 36px;
     border-radius: 999px; cursor: pointer; border: 1px solid var(--primary-color);
     background: var(--primary-color); color: var(--text-primary-color, #fff); }
+  ha-card.style-glow { background: none; border: none; box-shadow: none; }
+  .style-glow { --now: var(--edookit-now-color, var(--amber-color, #ffc107));
+    --glow: var(--edookit-glow-color, var(--primary-color)); }
+  .style-glow .switch button { border: none; background: none; }
+  .style-glow .switch button[aria-pressed="true"] { background: none; color: var(--glow);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--glow) 70%, transparent); }
+  .style-glow .day.today, .style-glow .day.today small { color: var(--glow);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--glow) 70%, transparent); }
+  .style-glow .today-row { box-shadow: none;
+    background: radial-gradient(ellipse at center,
+      color-mix(in srgb, var(--glow) 14%, transparent), transparent 75%); }
+  .style-glow .lesson { position: relative; border: none; border-radius: 10px; background: none;
+    transition: box-shadow 0.4s, background-color 0.4s; }
+  .style-glow .lesson.now { background: color-mix(in srgb, var(--now) 10%, transparent);
+    box-shadow: 0 0 18px 3px color-mix(in srgb, var(--now) 45%, transparent); }
+  .style-glow .lesson.changed::after { content: ""; position: absolute; top: 4px; right: 4px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--primary-color);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--primary-color) 70%, transparent); }
+  .style-glow .event { border: none; background: none; text-align: center; }
+  .style-glow .event .etitle { color: var(--ev); }
+  .style-glow .event.now { border-radius: 10px;
+    background: color-mix(in srgb, var(--ev) 18%, transparent);
+    box-shadow: 0 0 18px 4px color-mix(in srgb, var(--ev) 65%, transparent); }
+  .style-glow .event .esub { color: var(--secondary-text-color); }
+  ha-card.style-glow ~ .overlay { background: none; }
+  ha-card.style-glow ~ .overlay .panel {
+    border: 1px solid color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+    background: color-mix(in srgb, var(--card-background-color, #1c1c1c) 45%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); }
+  ha-card.style-glow ~ .overlay .close { border: none; background: none;
+    color: var(--primary-color);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--primary-color) 70%, transparent); }
 `;
 
 function h(tag, className, text) {
@@ -202,6 +243,8 @@ class EdookitTimetableCard extends HTMLElement {
     this._overlay = null;
     this._overlayReturn = null;
     this._detailTimer = null;
+    this._clockTimer = null;
+    this._timed = [];
 
     const style = h("style");
     style.textContent = STYLE;
@@ -215,8 +258,12 @@ class EdookitTimetableCard extends HTMLElement {
     if (!config || !config.entity) {
       throw new Error("The edookit-timetable-card needs an entity");
     }
+    const style = config.style ?? "classic";
+    if (!STYLES.includes(style)) {
+      throw new Error(`style must be one of ${STYLES.join(", ")}`);
+    }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
-    this._config = { ...config };
+    this._config = { ...config, style };
     if (entityChanged) {
       this._payload = null;
       this._lastToday = null;
@@ -225,6 +272,7 @@ class EdookitTimetableCard extends HTMLElement {
     }
     this._ensureSubscribed();
     this._render();
+    this._scheduleClock();
   }
 
   set hass(hass) {
@@ -243,10 +291,12 @@ class EdookitTimetableCard extends HTMLElement {
     this._connected = true;
     this._watchConnection();
     this._ensureSubscribed();
+    this._scheduleClock();
   }
 
   disconnectedCallback() {
     this._connected = false;
+    this._stopClock();
     this._closeDetail();
     this._unwatchConnection();
     this._teardown();
@@ -361,9 +411,43 @@ class EdookitTimetableCard extends HTMLElement {
     }
   }
 
+  // Glow marks the lesson in progress, so it re-checks the clock at the start
+  // of every minute instead of waiting for the next timetable push.
+  _scheduleClock() {
+    this._stopClock();
+    if (!this._connected || !this._config || this._config.style !== "glow") return;
+    this._clockTimer = setTimeout(() => {
+      this._markNow();
+      this._scheduleClock();
+    }, MINUTE_MS - (Date.now() % MINUTE_MS) + 50);
+  }
+
+  _stopClock() {
+    clearTimeout(this._clockTimer);
+    this._clockTimer = null;
+  }
+
+  _markNow() {
+    if (this._config.style !== "glow" || !this._payload) return;
+    const time = this._clock();
+    this._timed.forEach((entry) => {
+      const running = entry.start === null || (entry.start <= time && time < entry.end);
+      entry.tile.className =
+        entry.date === this._payload.today && running ? `${entry.base} now` : entry.base;
+    });
+  }
+
+  _clock() {
+    return PRAGUE_CLOCK.format(new Date());
+  }
+
   _render() {
     this._language = this._resolveLanguage();
     const t = STRINGS[this._language];
+    const style = this._config ? this._config.style : "classic";
+    this._card.className = `style-${style}`;
+    this._body.className = `card style-${style}`;
+    this._timed = [];
     this._body.replaceChildren();
 
     const showHeader = !this._config || this._config.show_header !== false;
@@ -381,6 +465,7 @@ class EdookitTimetableCard extends HTMLElement {
       return;
     }
     this._body.append(this._renderGrid(week, t));
+    this._markNow();
     if (this._retryTimer !== null) this._body.append(h("div", "status", t.unavailable));
   }
 
@@ -522,6 +607,9 @@ class EdookitTimetableCard extends HTMLElement {
 
     const tile = h("button", classes.join(" "));
     tile.type = "button";
+    if (!lesson.cancelled) {
+      this._timed.push({ tile, base: tile.className, date, start: lesson.start, end: lesson.end });
+    }
     tile.append(h("div", "code", text));
     if (showRoom && lesson.room) tile.append(h("div", "room", lesson.room));
     const times = `${clockLabel(lesson.start)}–${clockLabel(lesson.end)}`;
@@ -547,6 +635,7 @@ class EdookitTimetableCard extends HTMLElement {
     if (edge) classes.push("edge");
     const tile = h("button", classes.join(" "));
     tile.type = "button";
+    this._timed.push({ tile, base: tile.className, date, start: event.start, end: event.end });
     tile.append(h("div", "etitle", event.title));
     const times = event.all_day ? null : `${clockLabel(event.start)}–${clockLabel(event.end)}`;
     const sub = h("div", "esub", event.all_day ? `${t.wholeDay} · ${t.noLessons}` : times);

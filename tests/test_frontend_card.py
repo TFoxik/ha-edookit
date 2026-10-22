@@ -58,6 +58,7 @@ def test_card_script_is_valid_javascript() -> None:
 
 
 WEDNESDAY = date(2026, 10, 14)
+THURSDAY = date(2026, 10, 15)
 FRIDAY = date(2026, 10, 16)
 SATURDAY = date(2026, 10, 17)
 THIS_WEEK_DAYS = ["12.10.", "13.10.", "14.10.", "15.10.", "16.10."]
@@ -65,17 +66,30 @@ NEXT_WEEK_DAYS = ["19.10.", "20.10.", "21.10.", "22.10.", "23.10."]
 
 
 def _render(
-    config: dict[str, Any], *days: date, events: list[SchoolEvent] | None = None
+    config: dict[str, Any],
+    *days: date,
+    events: list[SchoolEvent] | None = None,
+    now: str | None = None,
 ) -> dict[str, Any]:
     node = shutil.which("node")
     if node is None:
         pytest.skip("node not installed")
     payloads = [build_payload(day, [this_week], events or []) for day in days]
     stdin = json.dumps(
-        {"config": {"entity": "calendar.edookit_x_timetable", **config}, "events": payloads}
+        {
+            "config": {"entity": "calendar.edookit_x_timetable", **config},
+            "events": payloads,
+            "now": now,
+        }
     )
+    # A clock timer left running after disconnect keeps node alive past the timeout.
     result = subprocess.run(
-        [node, str(HARNESS_JS)], input=stdin, capture_output=True, text=True, check=True
+        [node, str(HARNESS_JS)],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=20,
     )
     return json.loads(result.stdout)
 
@@ -170,3 +184,54 @@ def test_card_with_days_marks_today_on_the_label_only() -> None:
 
 def test_card_without_days_marks_no_row_when_today_is_not_shown() -> None:
     assert _render({"show_days": False}, SATURDAY)["todayRows"] == []
+
+
+DURING_HV = "09:10"
+
+
+def test_card_style_defaults_to_classic() -> None:
+    shown = _render({}, WEDNESDAY, now=DURING_HV)
+
+    assert shown["cardClass"] == "card style-classic"
+    assert shown["haCardClass"] == "style-classic"
+    assert shown["now"] == []
+
+
+def test_card_rejects_an_unknown_style() -> None:
+    assert _render({"style": "neon"}, WEDNESDAY)["error"] == "style must be one of classic, glow"
+
+
+def test_glow_card_marks_only_the_lesson_in_progress() -> None:
+    shown = _render({"style": "glow"}, WEDNESDAY, now=DURING_HV)
+
+    assert shown["cardClass"] == "card style-glow"
+    assert shown["haCardClass"] == "style-glow"
+    assert shown["now"] == ["Hv"]
+
+
+@pytest.mark.parametrize(
+    ("day", "now"),
+    [(WEDNESDAY, "07:30"), (WEDNESDAY, "09:40"), (WEDNESDAY, "12:00"), (SATURDAY, DURING_HV)],
+    ids=["before school", "in a break", "after school", "weekend"],
+)
+def test_glow_card_marks_nothing_outside_lessons(day: date, now: str) -> None:
+    assert _render({"style": "glow"}, day, now=now)["now"] == []
+
+
+def test_glow_card_marks_today_on_the_label_only() -> None:
+    assert _render({"style": "glow"}, WEDNESDAY)["todayRows"] == []
+    assert _render({"style": "glow", "show_days": False}, WEDNESDAY)["todayRows"] == ["4"]
+
+
+def test_glow_card_lights_up_an_event_in_progress() -> None:
+    during = _render({"style": "glow"}, THURSDAY, events=[KAMARAD], now="10:30")
+    before = _render({"style": "glow"}, THURSDAY, events=[KAMARAD], now="09:00")
+
+    assert during["now"] == [KAMARAD.title]
+    assert KAMARAD.title not in before["now"]
+
+
+def test_glow_card_lights_up_an_all_day_event_all_day() -> None:
+    shown = _render({"style": "glow"}, FRIDAY, events=EVERY_PLACEMENT, now="15:00")
+
+    assert "Ředitelské volno" in shown["now"]
