@@ -46,7 +46,8 @@ itself after a minute, so a wall tablet is never left covered.
 
 There is nothing to install: Home Assistant loads the card with the
 integration. Add it to a dashboard (reload the browser once after the first
-update) with:
+update) from **Add card** → **Edookit timetable** and set it up in the
+visual editor, or in YAML:
 
 ```yaml
 type: custom:edookit-timetable-card
@@ -118,6 +119,9 @@ unread count in the header. Tap a message to read it in full: subject,
 sender, recipients, time, and the text with its bold, italics, lists and
 links. **Opening a message in Home Assistant marks it read on the portal**,
 the same as opening it there.
+
+Add it from **Add card** → **Edookit messages** and set it up in the visual
+editor, or in YAML:
 
 ```yaml
 type: custom:edookit-messages-card

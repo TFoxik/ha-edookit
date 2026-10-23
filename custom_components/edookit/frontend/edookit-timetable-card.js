@@ -1,9 +1,17 @@
 const CARD_TAG = "edookit-timetable-card";
+const EDITOR_TAG = "edookit-timetable-card-editor";
 const RETRY_MS = 30000;
 const DETAIL_TIMEOUT_MS = 60000;
 const MINUTE_MS = 60000;
 const EDGE_TRACK = "minmax(40px, 0.8fr)";
 const STYLES = ["classic", "glow"];
+const DEFAULTS = {
+  style: "classic",
+  show_header: true,
+  show_periods: true,
+  show_days: true,
+  show_room: true,
+};
 const PRAGUE_CLOCK = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Prague",
   hour: "2-digit",
@@ -175,6 +183,11 @@ const STYLE = `
     text-shadow: 0 0 10px color-mix(in srgb, var(--primary-color) 70%, transparent); }
 `;
 
+function userLanguage(hass) {
+  const locale = hass && hass.locale && hass.locale.language;
+  return typeof locale === "string" && locale.startsWith("cs") ? "cs" : "en";
+}
+
 function h(tag, className, text) {
   const el = document.createElement(tag);
   if (className) el.className = className;
@@ -214,6 +227,10 @@ function clockLabel(hhmm) {
 }
 
 class EdookitTimetableCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement(EDITOR_TAG);
+  }
+
   static getStubConfig(hass) {
     const entity = Object.keys((hass && hass.states) || {}).find(
       (id) => id.startsWith("calendar.edookit_") && id.endsWith("_timetable"),
@@ -258,12 +275,12 @@ class EdookitTimetableCard extends HTMLElement {
     if (!config || !config.entity) {
       throw new Error("The edookit-timetable-card needs an entity");
     }
-    const style = config.style ?? "classic";
+    const style = config.style ?? DEFAULTS.style;
     if (!STYLES.includes(style)) {
       throw new Error(`style must be one of ${STYLES.join(", ")}`);
     }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
-    this._config = { ...config, style };
+    this._config = { ...DEFAULTS, ...config, style };
     if (entityChanged) {
       this._payload = null;
       this._lastToday = null;
@@ -325,8 +342,7 @@ class EdookitTimetableCard extends HTMLElement {
   _resolveLanguage() {
     const configured = this._config && this._config.language;
     if (configured === "cs" || configured === "en") return configured;
-    const locale = this._hass && this._hass.locale && this._hass.locale.language;
-    return typeof locale === "string" && locale.startsWith("cs") ? "cs" : "en";
+    return userLanguage(this._hass);
   }
 
   _ensureSubscribed() {
@@ -719,6 +735,133 @@ class EdookitTimetableCard extends HTMLElement {
   }
 }
 
+const EDITOR_STRINGS = {
+  cs: {
+    labels: {
+      entity: "Rozvrh",
+      style: "Vzhled",
+      language: "Jazyk",
+      show_header: "Záhlaví s datem a přepínačem týdnů",
+      show_periods: "Čísla a začátky hodin",
+      show_days: "Dny v týdnu",
+      show_room: "Učebna na dlaždici",
+    },
+    helpers: {
+      style: "Záře je pro tmavé dashboardy bez rámečků karet.",
+      language: "Bez výběru se řídí jazykem Home Assistantu.",
+    },
+    styles: { classic: "Klasický", glow: "Záře" },
+  },
+  en: {
+    labels: {
+      entity: "Timetable",
+      style: "Style",
+      language: "Language",
+      show_header: "Header with date and week switch",
+      show_periods: "Period numbers and start times",
+      show_days: "Weekdays",
+      show_room: "Room on the tiles",
+    },
+    helpers: {
+      style: "Glow is for dark dashboards without card boxes.",
+      language: "Leave empty to follow the Home Assistant language.",
+    },
+    styles: { classic: "Classic", glow: "Glow" },
+  },
+};
+
+function editorSchema(t, entities) {
+  const select = (options) => ({ select: { mode: "dropdown", options } });
+  return [
+    { name: "entity", required: true, selector: { entity: { include_entities: entities } } },
+    {
+      type: "grid",
+      name: "",
+      schema: [
+        { name: "style", selector: select(STYLES.map((value) => ({ value, label: t.styles[value] }))) },
+        {
+          name: "language",
+          selector: select([
+            { value: "cs", label: "Čeština" },
+            { value: "en", label: "English" },
+          ]),
+        },
+      ],
+    },
+    {
+      type: "grid",
+      name: "",
+      schema: ["show_header", "show_periods", "show_days", "show_room"].map((name) => ({
+        name,
+        selector: { boolean: {} },
+      })),
+    },
+  ];
+}
+
+// ha-form reads each value straight from the config, so an option left out
+// (meaning its default) would show as off. The form gets the defaults filled in
+// and they are dropped again on the way out, so the YAML keeps only changes.
+class EdookitTimetableCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this._config = {};
+    this._hass = null;
+    this._form = null;
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._build();
+  }
+
+  // hass changes with every state in the system; the form is rebuilt only when
+  // the entity registry or the user's language changes.
+  set hass(hass) {
+    const previous = this._hass;
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+    if (
+      !previous ||
+      previous.entities !== hass.entities ||
+      userLanguage(previous) !== userLanguage(hass)
+    ) {
+      this._build();
+    }
+  }
+
+  _build() {
+    if (!this._hass) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.addEventListener("value-changed", (e) => this._changed(e.detail.value));
+      this.append(this._form);
+    }
+    const t = EDITOR_STRINGS[userLanguage(this._hass)];
+    const entities = Object.values(this._hass.entities || {})
+      .filter((entry) => entry.platform === "edookit" && entry.translation_key === "timetable")
+      .map((entry) => entry.entity_id);
+    if (this._config.entity && !entities.includes(this._config.entity)) {
+      entities.push(this._config.entity);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = editorSchema(t, entities);
+    this._form.computeLabel = (field) => t.labels[field.name];
+    this._form.computeHelper = (field) => t.helpers[field.name];
+    this._form.data = { ...DEFAULTS, ...this._config };
+  }
+
+  _changed(value) {
+    const config = { ...this._config, ...value };
+    Object.keys(config).forEach((key) => {
+      if ([undefined, null, "", DEFAULTS[key]].includes(config[key])) delete config[key];
+    });
+    this.dispatchEvent(
+      new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }),
+    );
+  }
+}
+
 // Extra modules run before the frontend boots. Its app bundle then swaps in a
 // scoped-registry polyfill that has never heard of elements defined earlier, so
 // the dashboard reports "Custom element doesn't exist". Waiting for the
@@ -726,6 +869,9 @@ class EdookitTimetableCard extends HTMLElement {
 customElements.whenDefined("home-assistant").then(() => {
   if (!customElements.get(CARD_TAG)) {
     customElements.define(CARD_TAG, EdookitTimetableCard);
+  }
+  if (!customElements.get(EDITOR_TAG)) {
+    customElements.define(EDITOR_TAG, EdookitTimetableCardEditor);
   }
 });
 

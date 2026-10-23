@@ -1,7 +1,17 @@
 const CARD_TAG = "edookit-messages-card";
+const EDITOR_TAG = "edookit-messages-card-editor";
 const RETRY_MS = 30000;
 const DEFAULT_MAX = 5;
 const STYLES = ["classic", "minimal", "modern"];
+const DEFAULTS = {
+  style: "classic",
+  open: "inline",
+  max_messages: DEFAULT_MAX,
+  unread_only: false,
+  show_preview: true,
+  compact: false,
+  show_header: true,
+};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const STRINGS = {
@@ -139,6 +149,11 @@ function previousDay(day) {
   return new Date(Date.UTC(year, month - 1, date - 1)).toISOString().slice(0, 10);
 }
 
+function userLanguage(hass) {
+  const locale = hass && hass.locale && hass.locale.language;
+  return typeof locale === "string" && locale.startsWith("cs") ? "cs" : "en";
+}
+
 // Today's messages show the time, yesterday's a word, older ones the date.
 function shortLabel(t, iso, days) {
   const sent = parseSent(iso);
@@ -187,6 +202,10 @@ function appendBody(parent, nodes) {
 }
 
 class EdookitMessagesCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement(EDITOR_TAG);
+  }
+
   static getStubConfig(hass) {
     const entity = Object.keys((hass && hass.states) || {}).find(
       (id) => id.startsWith("sensor.edookit_") && id.endsWith("_unread_messages"),
@@ -242,7 +261,7 @@ class EdookitMessagesCard extends HTMLElement {
       throw new Error("max_messages must be a positive whole number");
     }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
-    this._config = { style: "classic", open: "inline", max_messages: DEFAULT_MAX, ...config };
+    this._config = { ...DEFAULTS, ...config };
     if (entityChanged) {
       this._payload = null;
       this._close();
@@ -299,8 +318,7 @@ class EdookitMessagesCard extends HTMLElement {
   _resolveLanguage() {
     const configured = this._config && this._config.language;
     if (configured === "cs" || configured === "en") return configured;
-    const locale = this._hass && this._hass.locale && this._hass.locale.language;
-    return typeof locale === "string" && locale.startsWith("cs") ? "cs" : "en";
+    return userLanguage(this._hass);
   }
 
   _ensureSubscribed() {
@@ -568,11 +586,149 @@ class EdookitMessagesCard extends HTMLElement {
   }
 }
 
+const EDITOR_STRINGS = {
+  cs: {
+    labels: {
+      entity: "Nepřečtené zprávy",
+      style: "Vzhled",
+      open: "Otevřít zprávu",
+      max_messages: "Počet zpráv",
+      language: "Jazyk",
+      unread_only: "Jen nepřečtené",
+      show_preview: "Náhled textu",
+      compact: "Úsporné řádky",
+      show_header: "Záhlaví",
+    },
+    helpers: {
+      language: "Bez výběru se řídí jazykem Home Assistantu.",
+    },
+    styles: { classic: "Klasický", minimal: "Minimální", modern: "Moderní" },
+    opens: { inline: "V kartě", popup: "V okně" },
+  },
+  en: {
+    labels: {
+      entity: "Unread messages",
+      style: "Style",
+      open: "Open a message",
+      max_messages: "Messages shown",
+      language: "Language",
+      unread_only: "Unread only",
+      show_preview: "Text preview",
+      compact: "Compact rows",
+      show_header: "Header",
+    },
+    helpers: {
+      language: "Leave empty to follow the Home Assistant language.",
+    },
+    styles: { classic: "Classic", minimal: "Minimal", modern: "Modern" },
+    opens: { inline: "In the card", popup: "In a popup" },
+  },
+};
+
+function editorSchema(t, entities) {
+  const select = (options) => ({ select: { mode: "dropdown", options } });
+  return [
+    { name: "entity", required: true, selector: { entity: { include_entities: entities } } },
+    {
+      type: "grid",
+      name: "",
+      schema: [
+        { name: "style", selector: select(STYLES.map((value) => ({ value, label: t.styles[value] }))) },
+        {
+          name: "open",
+          selector: select(["inline", "popup"].map((value) => ({ value, label: t.opens[value] }))),
+        },
+        { name: "max_messages", selector: { number: { min: 1, mode: "box" } } },
+        {
+          name: "language",
+          selector: select([
+            { value: "cs", label: "Čeština" },
+            { value: "en", label: "English" },
+          ]),
+        },
+      ],
+    },
+    {
+      type: "grid",
+      name: "",
+      schema: ["unread_only", "show_preview", "compact", "show_header"].map((name) => ({
+        name,
+        selector: { boolean: {} },
+      })),
+    },
+  ];
+}
+
+// Same scheme as the timetable editor: defaults filled in for ha-form, which
+// would show a left-out option as off, and dropped again on the way out.
+class EdookitMessagesCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this._config = {};
+    this._hass = null;
+    this._form = null;
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._build();
+  }
+
+  // hass changes with every state in the system; the form is rebuilt only when
+  // the entity registry or the user's language changes.
+  set hass(hass) {
+    const previous = this._hass;
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+    if (
+      !previous ||
+      previous.entities !== hass.entities ||
+      userLanguage(previous) !== userLanguage(hass)
+    ) {
+      this._build();
+    }
+  }
+
+  _build() {
+    if (!this._hass) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.addEventListener("value-changed", (e) => this._changed(e.detail.value));
+      this.append(this._form);
+    }
+    const t = EDITOR_STRINGS[userLanguage(this._hass)];
+    const entities = Object.values(this._hass.entities || {})
+      .filter((entry) => entry.platform === "edookit" && entry.translation_key === "unread_messages")
+      .map((entry) => entry.entity_id);
+    if (this._config.entity && !entities.includes(this._config.entity)) {
+      entities.push(this._config.entity);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = editorSchema(t, entities);
+    this._form.computeLabel = (field) => t.labels[field.name];
+    this._form.computeHelper = (field) => t.helpers[field.name];
+    this._form.data = { ...DEFAULTS, ...this._config };
+  }
+
+  _changed(value) {
+    const config = { ...this._config, ...value };
+    Object.keys(config).forEach((key) => {
+      if ([undefined, null, "", DEFAULTS[key]].includes(config[key])) delete config[key];
+    });
+    this.dispatchEvent(
+      new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }),
+    );
+  }
+}
+
 // Defined once the frontend's root element exists, for the same scoped-registry
 // reason as the timetable card.
 customElements.whenDefined("home-assistant").then(() => {
   if (!customElements.get(CARD_TAG)) {
     customElements.define(CARD_TAG, EdookitMessagesCard);
+  }
+  if (!customElements.get(EDITOR_TAG)) {
+    customElements.define(EDITOR_TAG, EdookitMessagesCardEditor);
   }
 });
 

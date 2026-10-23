@@ -61,6 +61,11 @@ class FakeNode {
     (this.listeners[type] || []).slice().forEach((listener) => listener(event));
   }
 
+  dispatchEvent(event) {
+    this.dispatch(event.type, event);
+    return true;
+  }
+
   focus() {}
 
   findAll(predicate) {
@@ -90,6 +95,12 @@ function loadCard(script) {
       createTextNode: (text) => new FakeNode("#text", text),
     },
     HTMLElement: FakeHTMLElement,
+    CustomEvent: class {
+      constructor(type, init = {}) {
+        this.type = type;
+        this.detail = init.detail;
+      }
+    },
     customElements: {
       whenDefined: () => Promise.resolve(),
       get: (tag) => defined.get(tag),
