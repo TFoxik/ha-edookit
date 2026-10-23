@@ -1,6 +1,6 @@
 [project]
 name = "ha-edookit"
-version = "0.9.0"
+version = "0.10.0"
 description = "Home Assistant integration for the Edookit parent portal"
 requires-python = ">=3.14"
 dependencies = ["pyedookit==0.6.0"]
