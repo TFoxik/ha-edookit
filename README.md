@@ -116,9 +116,8 @@ For a small overlay, `show_header: false`, `show_periods: false` and
 The newest messages from Schránka, with an orange dot on unread ones and the
 unread count in the header. Tap a message to read it in full: subject,
 sender, recipients, time, and the text with its bold, italics, lists and
-links. **Opening a message in Home Assistant is expected to mark it read on
-the portal**, the same as opening it there (not yet confirmed, see
-[Limitations](#limitations)).
+links. **Opening a message in Home Assistant marks it read on the portal**,
+the same as opening it there.
 
 ```yaml
 type: custom:edookit-messages-card
@@ -219,10 +218,6 @@ actions:
 
 - **Supported:** timetable, school events, payments and messages. Grades,
   attendance, homework, tests and consents are not.
-- **Unread messages not yet seen on a real portal:** the unread marker comes
-  from the portal's sample message, and that opening a message marks it read
-  is assumed, not observed. If a new message doesn't show as unread, or turns
-  unread again about 30 minutes after you opened it, please open an issue.
 - **Next week is a copy of this week:** the portal's next-week navigation
   hasn't been worked out, so the card projects it (see
   [Weekly timetable card](#weekly-timetable-card)). Schools that alternate

@@ -16,8 +16,8 @@ _LOGGER = logging.getLogger(__name__)
 
 class EdookitMessagesCoordinator(DataUpdateCoordinator[list[MessageSummary]]):
     """The messages in Schránka. Only the list: a message's full text is
-    fetched when someone opens it, because fetching it is expected to mark
-    it read on the portal."""
+    fetched when someone opens it, because fetching it marks it read on the
+    portal."""
 
     config_entry: EdookitConfigEntry
 
