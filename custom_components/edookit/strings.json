@@ -62,6 +62,9 @@
       },
       "unread_messages": {
         "name": "Unread messages"
+      },
+      "latest_grade": {
+        "name": "Latest grade"
       }
     },
     "calendar": {

@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
+from pyedookit import CAPTURE_PAGES
 
 from custom_components.edookit.capture import PageCapture
 
@@ -26,7 +27,7 @@ class FakeSession:
 
 
 def _pages(assignments: str = EMPTY) -> dict[str, str]:
-    return {"assignments": assignments, "exams": EMPTY, "consents": EMPTY}
+    return {name: EMPTY for name in CAPTURE_PAGES} | {"assignments": assignments}
 
 
 def _notification(hass: HomeAssistant) -> dict:
@@ -106,7 +107,7 @@ async def test_failed_write_does_not_raise_or_stop_other_pages(
 ) -> None:
     capture = PageCapture(hass, "entry1", tmp_path)
     await capture.async_run(FakeSession(_pages()))
-    changed = {name: WITH_ITEM for name in ("assignments", "exams", "consents")}
+    changed = {name: WITH_ITEM for name in _pages()}
 
     def flaky_write(path: Path, html: str) -> None:
         if path.name.startswith("assignments"):
@@ -116,7 +117,7 @@ async def test_failed_write_does_not_raise_or_stop_other_pages(
     with patch("custom_components.edookit.capture._write", side_effect=flaky_write):
         captured = await capture.async_run(FakeSession(changed))
 
-    assert captured == ["exams", "consents"]
+    assert captured == [name for name in CAPTURE_PAGES if name != "assignments"]
 
 
 async def test_error_pages_are_not_captured_and_keep_the_baseline(

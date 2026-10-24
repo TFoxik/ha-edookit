@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
-from pyedookit import Session
+from pyedookit import CAPTURE_PAGES, Session
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -85,11 +85,7 @@ async def test_capture_on_fetches_capture_pages(hass: HomeAssistant) -> None:
     with patch("pyedookit.client.EdookitClient.fetch_page", new=fetch_page):
         await _setup(hass, capture=True)
 
-    assert {call.args[0] for call in fetch_page.await_args_list} == {
-        "assignments",
-        "exams",
-        "consents",
-    }
+    assert {call.args[0] for call in fetch_page.await_args_list} == set(CAPTURE_PAGES)
 
 
 async def test_session_refresh_does_not_reload_entry(hass: HomeAssistant) -> None:
@@ -120,15 +116,16 @@ async def test_capture_runs_daily_outside_the_school_update(hass: HomeAssistant)
     ):
         await _setup(hass, capture=True)
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert fetch_page.await_count == 3
+        assert fetch_page.await_count == len(CAPTURE_PAGES)
 
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(hours=3, minutes=1))
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert fetch_page.await_count == 3  # the 3-hourly school update no longer captures
+        # the 3-hourly school update no longer captures
+        assert fetch_page.await_count == len(CAPTURE_PAGES)
 
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(days=1, minutes=1))
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert fetch_page.await_count == 6
+        assert fetch_page.await_count == 2 * len(CAPTURE_PAGES)
 
 
 async def test_capture_auth_failure_leaves_school_data_alone(hass: HomeAssistant) -> None:
@@ -157,4 +154,4 @@ async def test_unload_cancels_the_capture_timer(hass: HomeAssistant) -> None:
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(days=1, minutes=1))
         await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert fetch_page.await_count == 3
+    assert fetch_page.await_count == len(CAPTURE_PAGES)

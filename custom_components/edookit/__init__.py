@@ -18,6 +18,7 @@ from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_SESSION, DOMAIN
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
 from .frontend_card import async_register_card
+from .grades_coordinator import EdookitGradesCoordinator, async_remove_seen
 from .memory import WeekMemory
 from .messages_coordinator import EdookitMessagesCoordinator
 from .school_coordinator import EdookitSchoolCoordinator
@@ -51,9 +52,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     await school.async_refresh()
     messages = EdookitMessagesCoordinator(hass, entry, session)
     await messages.async_refresh()
+    grades = EdookitGradesCoordinator(hass, entry, session)
+    await grades.async_load_seen()
+    await grades.async_refresh()
 
     entry.runtime_data = EdookitRuntimeData(
-        timetable=timetable, school=school, memory=memory, messages=messages
+        timetable=timetable, school=school, memory=memory, messages=messages, grades=grades
     )
     _feed_memory(entry, timetable, school, memory)
     if capture_enabled():
@@ -106,3 +110,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> 
 
 async def async_remove_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> None:
     await WeekMemory(hass, entry.entry_id).async_remove()
+    await async_remove_seen(hass, entry.entry_id)
