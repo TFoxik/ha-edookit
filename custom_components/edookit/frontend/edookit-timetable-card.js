@@ -3,7 +3,8 @@ const EDITOR_TAG = "edookit-timetable-card-editor";
 const RETRY_MS = 30000;
 const DETAIL_TIMEOUT_MS = 60000;
 const MINUTE_MS = 60000;
-const EDGE_TRACK = "minmax(40px, 0.8fr)";
+const EDGE_TRACK = "minmax(56px, 1.4fr)";
+const EDGE_GAP = "4px";
 const STYLES = ["classic", "glow"];
 const DEFAULTS = {
   style: "classic",
@@ -224,6 +225,25 @@ function defaultWeek(payload) {
 
 function clockLabel(hhmm) {
   return hhmm.replace(/^0/, "");
+}
+
+// An event before or after school gets its own column, so the school's unused
+// periods on that side would only push it away from the lessons.
+function shownPeriods(week, hasBefore, hasAfter) {
+  const used = week.days
+    .flatMap((day) => [
+      ...day.lessons.map((lesson) => lesson.period),
+      ...day.events
+        .filter((event) => !event.all_day && !event.edge)
+        .flatMap((event) => [event.first_period, event.last_period]),
+    ])
+    .filter((number) => typeof number === "number");
+  if (!used.length) return week.periods;
+  const first = Math.min(...used);
+  const last = Math.max(...used);
+  return week.periods.filter(
+    (period) => (!hasBefore || period.number >= first) && (!hasAfter || period.number <= last),
+  );
 }
 
 class EdookitTimetableCard extends HTMLElement {
@@ -512,15 +532,16 @@ class EdookitTimetableCard extends HTMLElement {
     const events = week.days.flatMap((day) => day.events);
     const hasBefore = events.some((event) => event.edge === "before");
     const hasAfter = events.some((event) => event.edge === "after");
+    const periods = shownPeriods(week, hasBefore, hasAfter);
     const tracks = showDays ? ["auto"] : [];
     const beforeColumn = tracks.length + 1;
-    if (hasBefore) tracks.push(EDGE_TRACK);
+    if (hasBefore) tracks.push(EDGE_TRACK, EDGE_GAP);
     const firstColumn = tracks.length + 1;
-    tracks.push(`repeat(${week.periods.length}, minmax(0, 1fr))`);
-    if (hasAfter) tracks.push(EDGE_TRACK);
+    tracks.push(`repeat(${periods.length}, minmax(0, 1fr))`);
+    if (hasAfter) tracks.push(EDGE_GAP, EDGE_TRACK);
     grid.style.gridTemplateColumns = tracks.join(" ");
-    const columnOf = new Map(week.periods.map((p, index) => [p.number, index + firstColumn]));
-    const afterColumn = week.periods.length + firstColumn;
+    const columnOf = new Map(periods.map((p, index) => [p.number, index + firstColumn]));
+    const afterColumn = periods.length + firstColumn + 1;
 
     const rows = showPeriods ? ["auto"] : [];
     const firstRow = rows.length + 1;
@@ -528,7 +549,7 @@ class EdookitTimetableCard extends HTMLElement {
     grid.style.gridTemplateRows = rows.join(" ");
 
     if (showPeriods) {
-      week.periods.forEach((period) => {
+      periods.forEach((period) => {
         const head = h("div", "period-head");
         head.append(h("b", "", String(period.number)), document.createTextNode(clockLabel(period.start)));
         head.style.gridColumn = String(columnOf.get(period.number));

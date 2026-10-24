@@ -4,7 +4,7 @@ import hashlib
 import json
 import shutil
 import subprocess
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -12,12 +12,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL
 from homeassistant.core import HomeAssistant
-from pyedookit import PORTAL_TZ, SchoolEvent, Session
+from pyedookit import PORTAL_TZ, Period, SchoolEvent, Session
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
 from custom_components.edookit.const import CONF_SCHOOL, CONF_SESSION, DOMAIN
-from custom_components.edookit.week import build_payload
+from custom_components.edookit.week import WeekLessons, build_payload
 from tests.helpers import week
 from tests.week_data import KAMARAD, this_week
 
@@ -88,11 +88,12 @@ def _render(
     *days: date,
     events: list[SchoolEvent] | None = None,
     now: str | None = None,
+    known: WeekLessons = this_week,
 ) -> dict[str, Any]:
     node = shutil.which("node")
     if node is None:
         pytest.skip("node not installed")
-    payloads = [build_payload(day, [this_week], events or []) for day in days]
+    payloads = [build_payload(day, [known], events or []) for day in days]
     stdin = json.dumps(
         {
             "config": {"entity": "calendar.edookit_x_timetable", **config},
@@ -161,6 +162,41 @@ def test_card_shows_period_and_day_labels_by_default() -> None:
     assert shown["days"] == THIS_WEEK_DAYS
     assert shown["columns"].startswith("auto ")
     assert shown["rows"].startswith("auto ")
+
+
+LONG_DAY = WeekLessons(
+    this_week.monday,
+    this_week.lessons,
+    [
+        Period(0, time(7, 10), time(7, 55)),
+        *this_week.periods,
+        *(Period(n, time(12 + n - 5, 45), time(13 + n - 5, 30)) for n in range(6, 10)),
+    ],
+)
+EVENING = SchoolEvent("e5", "Uspávání", _at(17, 0, 12), _at(18, 0, 12))
+MORNING = SchoolEvent("e6", "Družina", _at(6, 0, 13), _at(7, 0, 13))
+
+
+def test_card_shows_every_school_period_when_nothing_is_outside_lessons() -> None:
+    shown = _render({}, WEDNESDAY, known=LONG_DAY)
+
+    assert shown["periodHeads"] == 10
+
+
+def test_card_drops_unused_periods_between_lessons_and_an_after_school_event() -> None:
+    shown = _render({}, WEDNESDAY, events=[EVENING], known=LONG_DAY)
+
+    assert shown["periodHeads"] == 6
+    assert shown["columns"].endswith("repeat(6, minmax(0, 1fr)) 4px minmax(56px, 1.4fr)")
+    assert ["2", "9"] in shown["cells"]
+
+
+def test_card_drops_unused_periods_between_a_before_school_event_and_lessons() -> None:
+    shown = _render({}, WEDNESDAY, events=[MORNING], known=LONG_DAY)
+
+    assert shown["periodHeads"] == 9
+    assert shown["columns"] == "auto minmax(56px, 1.4fr) 4px repeat(9, minmax(0, 1fr))"
+    assert ["3", "2"] in shown["cells"]
 
 
 def test_card_without_periods_drops_the_top_row() -> None:
