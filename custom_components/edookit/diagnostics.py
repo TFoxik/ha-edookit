@@ -27,4 +27,7 @@ async def async_get_config_entry_diagnostics(
         "event_count": len(runtime.school.data.events) if runtime.school.data else 0,
         "message_count": len(runtime.messages.data or []),
         "unread_message_count": sum(m.unread for m in runtime.messages.data or []),
+        "grades_last_update_success": runtime.grades.last_update_success,
+        "grade_count": len(runtime.grades.data.grades) if runtime.grades.data else 0,
+        "subject_count": len(runtime.grades.data.subjects) if runtime.grades.data else 0,
     }

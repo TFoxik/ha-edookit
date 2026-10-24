@@ -17,6 +17,7 @@ from pyedookit import PORTAL_TZ
 
 from .const import CONF_MESSAGES_ADMIN_ONLY, DOMAIN
 from .data import EdookitConfigEntry
+from .grades_payload import grades_payload
 from .messages_payload import message_payload, summary_payload
 from .week import build_payload
 
@@ -25,6 +26,8 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, _subscribe_week)
     websocket_api.async_register_command(hass, _subscribe_messages)
     websocket_api.async_register_command(hass, _get_message)
+    websocket_api.async_register_command(hass, _subscribe_grades)
+    websocket_api.async_register_command(hass, _mark_grade_seen)
 
 
 def _next_prague_midnight(now: datetime) -> datetime:
@@ -96,6 +99,53 @@ def _subscribe_messages(
         connection.send_message(websocket_api.event_message(msg_id, payload))
 
     _hold_subscription(hass, connection, msg_id, entry, push, coordinator.async_add_listener(push))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "edookit/grades/subscribe",
+        vol.Required("entity_id"): cv.entity_id,
+    }
+)
+@callback
+def _subscribe_grades(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    entry = _loaded_entry(hass, msg["entity_id"])
+    if entry is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
+        return
+
+    coordinator = entry.runtime_data.grades
+    msg_id = msg["id"]
+
+    @callback
+    def push() -> None:
+        payload = grades_payload(coordinator.data, _portal_today(), coordinator.seen)
+        connection.send_message(websocket_api.event_message(msg_id, payload))
+
+    _hold_subscription(hass, connection, msg_id, entry, push, coordinator.async_add_listener(push))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "edookit/grades/seen",
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("grade_id"): int,
+    }
+)
+@websocket_api.async_response
+async def _mark_grade_seen(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    entry = _loaded_entry(hass, msg["entity_id"])
+    if entry is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
+        return
+    if not await entry.runtime_data.grades.async_mark_seen(msg["grade_id"]):
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown grade")
+        return
+    connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command(

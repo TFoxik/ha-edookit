@@ -5,7 +5,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pyedookit import Payments
+from pyedookit import Grades, Payments
 
 from custom_components.edookit.const import CAPTURE_ENV
 
@@ -50,5 +50,9 @@ def mock_school_pages() -> Iterator[None]:
             new=AsyncMock(return_value=NO_PAYMENTS),
         ),
         patch("pyedookit.client.EdookitClient.get_inbox", new=AsyncMock(return_value=[])),
+        patch(
+            "pyedookit.client.EdookitClient.get_grades",
+            new=AsyncMock(return_value=Grades(None, [], [])),
+        ),
     ):
         yield

@@ -28,6 +28,9 @@
       },
       "unread_messages": {
         "default": "mdi:email"
+      },
+      "latest_grade": {
+        "default": "mdi:certificate"
       }
     }
   }

@@ -62,6 +62,9 @@
       },
       "unread_messages": {
         "name": "Nepřečtené zprávy"
+      },
+      "latest_grade": {
+        "name": "Poslední známka"
       }
     },
     "calendar": {

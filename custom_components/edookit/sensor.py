@@ -13,6 +13,7 @@ from pyedookit import Lesson
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
 from .entity_helpers import EdookitEntity, lesson_attributes, next_lesson
+from .grades_coordinator import EdookitGradesCoordinator
 from .messages_coordinator import EdookitMessagesCoordinator
 from .school_coordinator import EdookitSchoolCoordinator
 
@@ -30,6 +31,7 @@ async def async_setup_entry(
             EdookitSchoolEndsSensor(runtime.timetable, entry),
             EdookitPaymentsDueSensor(runtime.school, entry),
             EdookitUnreadMessagesSensor(runtime.messages, entry),
+            EdookitLatestGradeSensor(runtime.grades, entry),
         ]
     )
 
@@ -121,3 +123,15 @@ class EdookitUnreadMessagesSensor(EdookitEntity[EdookitMessagesCoordinator], Sen
     @property
     def native_value(self) -> int:
         return sum(message.unread for message in self.coordinator.data)
+
+
+class EdookitLatestGradeSensor(EdookitEntity[EdookitGradesCoordinator], SensorEntity):
+    """The newest grade's mark. Topic, subject and teacher are left out: entity
+    attributes end up in the recorder's history."""
+
+    key = "latest_grade"
+
+    @property
+    def native_value(self) -> str | None:
+        grades = self.coordinator.data.grades
+        return grades[0].mark if grades else None
