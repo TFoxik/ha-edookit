@@ -1,5 +1,5 @@
 // Drives a card's visual editor against the fake DOM and prints what ha-form gets.
-// Input on stdin: {"card": "timetable" | "messages", "config": {...}, "language": "cs",
+// Input on stdin: {"card": "timetable" | "messages" | "grades", "config": {...}, "language": "cs",
 // "entities": [{entity_id, platform, translation_key}, ...], "change": {...} | null}.
 // "change" holds the fields edited in the form; the editor's answer is printed.
 const fs = require("fs");

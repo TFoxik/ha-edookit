@@ -28,6 +28,7 @@ Each account gets one **Edookit {school}** device:
 | School events (calendar) | on during an event | trips, holidays and events from "Mé budoucí události" |
 | Payments due (sensor) | amount still to pay, in CZK | `paid`, `overpaid`, `unpaid_requests` |
 | Unread messages (sensor) | unread messages in Schránka | |
+| Latest grade (sensor) | the newest grade's mark; unknown before the term's first grade | |
 
 Entity IDs look like `sensor.edookit_<school>_next_lesson`. The event fires
 for lessons that become cancelled or changed while Home Assistant is
@@ -150,6 +151,33 @@ not. The text is shown as plain formatted text: images, colours and tables
 in a message are dropped, and nothing in a message can run code in Home
 Assistant.
 
+## Grades card
+
+The current term's grades. Three views:
+
+- `latest`: the newest grade large (mark, topic, subject, date entered,
+  teacher, weight), then the next few.
+- `subjects`: one line per subject with its marks (newest on the right, as
+  on the portal), the weighted average and attendance.
+- `combined`: the newest grade, then only the subjects that have grades;
+  subjects without one are folded into a single line.
+
+Grades entered in the last five days carry a "nová" badge until someone
+taps the grade; that clears it on every device. The average
+counts each grade by its weight; marks that aren't 1–5 are shown but left
+out of it. From the second half-year on, only that half-year is shown.
+
+Add it from **Add card** → **Edookit grades** and set it up in the visual
+editor, or in YAML:
+
+```yaml
+type: custom:edookit-grades-card
+entity: sensor.edookit_zs_example_latest_grade
+view: combined      # latest, subjects or combined; default combined
+max_grades: 5       # optional; grades in the latest view; default 5
+language: cs        # optional; default = your Home Assistant language
+```
+
 ## Installation
 
 Requires Home Assistant 2026.9 or newer.
@@ -170,11 +198,11 @@ manual install, copy `custom_components/edookit` into your
 
 ## How it updates
 
-- The timetable and the message list update every 30 minutes; events and
-  payments every 3 hours. A message's full text is fetched only when you
+- The timetable and the message list update every 30 minutes; events,
+  payments and grades every 3 hours. A message's full text is fetched only when you
   open it on the card.
-  If only the events or payments page fails, only those entities become
-  unavailable.
+  If only the events, payments or grades pages fail, only those entities
+  become unavailable.
 - The portal session is renewed silently using the Plus4U sign-in, which is
   set for 30 days. A renewal that fails, for example during a Plus4U or
   portal outage, is retried on the next update; Home Assistant asks you to
@@ -220,14 +248,15 @@ actions:
 
 ## Limitations
 
-- **Supported:** timetable, school events, payments and messages. Grades,
-  attendance, homework, tests and consents are not.
+- **Supported:** timetable, school events, payments, messages and grades.
+  Behaviour notes, homework, tests and consents are not; attendance only as a
+  percentage per subject on the grades card.
 - **Next week is a copy of this week:** the portal's next-week navigation
   hasn't been worked out, so the card projects it (see
   [Weekly timetable card](#weekly-timetable-card)). Schools that alternate
   between an A and a B week would see the wrong lessons every other week.
-- **Not yet seen on a real portal:** cancelled or changed lessons, and unpaid
-  payment requests. The cancellation markers and event may not fire until
+- **Not yet seen on a real portal:** cancelled or changed lessons, unpaid
+  payment requests, and term or non-numeric grades. The cancellation markers and event may not fire until
   pyedookit has real examples. The payments total is still right, because it
   comes from the portal's own summary.
 - **Plus4U accounts only:** Google and local Edookit sign-ins aren't
@@ -239,7 +268,8 @@ actions:
   cookies, as any Home Assistant integration with a login does.
 - Payment request titles (`unpaid_requests`) aren't written to the recorder's
   history. Message subjects and text are never stored in entity states or
-  attributes; the card fetches them on demand.
+  attributes; the card fetches them on demand. The *Latest grade* sensor
+  holds only the mark: topics, subjects and teachers stay out of the history.
 - Diagnostics redact the session and the school.
 
 ## Troubleshooting

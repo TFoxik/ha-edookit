@@ -27,6 +27,7 @@ CARD_JS = (
 HARNESS_JS = Path(__file__).parent / "card_harness.js"
 CARD_URL = "/edookit/edookit-timetable-card.js"
 MESSAGES_CARD_URL = "/edookit/edookit-messages-card.js"
+GRADES_CARD_URL = "/edookit/edookit-grades-card.js"
 
 
 async def test_card_script_is_served_and_registered(
@@ -55,6 +56,11 @@ async def test_card_script_is_served_and_registered(
     assert resp.status == 200
     assert "edookit-messages-card" in await resp.text()
     assert any(f"{MESSAGES_CARD_URL}?v=" in url for url in hass.data[DATA_EXTRA_MODULE_URL].urls)
+
+    resp = await (await hass_client()).get(GRADES_CARD_URL)
+    assert resp.status == 200
+    assert "edookit-grades-card" in await resp.text()
+    assert any(f"{GRADES_CARD_URL}?v=" in url for url in hass.data[DATA_EXTRA_MODULE_URL].urls)
     digest = hashlib.sha256(CARD_JS.read_bytes()).hexdigest()[:8]
     assert any(
         url.startswith(f"{CARD_URL}?v=") and url.endswith(digest)

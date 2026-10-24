@@ -12,10 +12,12 @@ HARNESS_JS = Path(__file__).parent / "editor_harness.js"
 
 TIMETABLE = "calendar.edookit_x_timetable"
 UNREAD = "sensor.edookit_x_unread_messages"
+LATEST = "sensor.edookit_x_latest_grade"
 ENTITIES = [
     {"entity_id": TIMETABLE, "platform": "edookit", "translation_key": "timetable"},
     {"entity_id": "calendar.renamed", "platform": "edookit", "translation_key": "timetable"},
     {"entity_id": UNREAD, "platform": "edookit", "translation_key": "unread_messages"},
+    {"entity_id": LATEST, "platform": "edookit", "translation_key": "latest_grade"},
     {
         "entity_id": "sensor.edookit_x_next_lesson",
         "platform": "edookit",
@@ -49,7 +51,7 @@ def _edit(
     return json.loads(result.stdout)
 
 
-@pytest.mark.parametrize("card", ["timetable", "messages"])
+@pytest.mark.parametrize("card", ["timetable", "messages", "grades"])
 def test_card_offers_its_visual_editor(card: str) -> None:
     assert _edit(card, {"entity": "x"})["editorTag"] == f"edookit-{card}-card-editor"
 
@@ -127,3 +129,27 @@ def test_editor_labels_follow_the_user_language(language: str, label: str) -> No
     assert (
         _edit("messages", {"entity": UNREAD}, language=language)["labels"]["unread_only"] == label
     )
+
+
+def test_grades_editor_shows_defaults_for_options_left_out() -> None:
+    shown = _edit("grades", {"entity": LATEST})
+
+    assert shown["data"] == {"entity": LATEST, "view": "combined", "max_grades": 5}
+    assert shown["fields"] == ["entity", "view", "max_grades", "language"]
+
+
+def test_grades_editor_lists_only_latest_grade_sensors() -> None:
+    assert _edit("grades", {"entity": ""})["entities"] == [LATEST]
+
+
+def test_grades_editor_drops_defaults() -> None:
+    shown = _edit(
+        "grades", {"entity": LATEST, "view": "latest"}, change={"view": "combined", "max_grades": 3}
+    )
+
+    assert shown["changed"] == {"entity": LATEST, "max_grades": 3}
+
+
+@pytest.mark.parametrize(("language", "label"), [("cs", "Zobrazení"), ("en", "View")])
+def test_grades_editor_labels_follow_language(language: str, label: str) -> None:
+    assert _edit("grades", {"entity": LATEST}, language=language)["labels"]["view"] == label
