@@ -10,7 +10,11 @@ from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 
-CARD_FILES = ("edookit-timetable-card.js", "edookit-messages-card.js")
+CARD_FILES = (
+    "edookit-timetable-card.js",
+    "edookit-messages-card.js",
+    "edookit-grades-card.js",
+)
 
 
 def _digests(frontend: Path) -> dict[str, str]:
