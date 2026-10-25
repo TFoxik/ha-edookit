@@ -130,6 +130,30 @@ def test_card_without_header_shows_only_the_grid() -> None:
     assert shown["days"] == THIS_WEEK_DAYS
 
 
+def test_card_has_no_name_by_default() -> None:
+    assert _render({}, WEDNESDAY)["names"] == []
+
+
+def test_card_shows_its_title_next_to_the_week() -> None:
+    shown = _render({"title": "Anna"}, WEDNESDAY)
+
+    assert shown["names"] == ["Anna"]
+    assert shown["title"] == "12.–16. 10."
+    assert shown["buttons"] == 2
+
+
+def test_card_without_header_still_shows_its_title() -> None:
+    shown = _render({"title": "Anna", "show_header": False}, WEDNESDAY)
+
+    assert shown["head"] is False
+    assert shown["names"] == ["Anna"]
+    assert shown["days"] == THIS_WEEK_DAYS
+
+
+def test_card_ignores_a_blank_title() -> None:
+    assert _render({"title": "  "}, WEDNESDAY)["names"] == []
+
+
 def test_card_without_header_shows_next_week_on_saturday() -> None:
     assert _render({"show_header": False}, SATURDAY)["days"] == NEXT_WEEK_DAYS
 

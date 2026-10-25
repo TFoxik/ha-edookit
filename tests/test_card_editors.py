@@ -69,6 +69,7 @@ def test_timetable_editor_shows_defaults_for_options_left_out() -> None:
     }
     assert shown["fields"] == [
         "entity",
+        "title",
         "style",
         "language",
         "show_header",

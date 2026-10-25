@@ -70,6 +70,10 @@ const STYLE = `
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
     flex-wrap: wrap; margin-bottom: 8px; }
   .title { font-size: 18px; font-weight: 600; }
+  .heading { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .name { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+  .name + .title { font-size: 14px; font-weight: 400; color: var(--secondary-text-color); }
+  .card > .name { margin-bottom: 8px; }
   .switch { display: flex; gap: 6px; }
   .switch button { font: inherit; font-size: 12px; padding: 3px 12px; min-height: 36px;
     border-radius: 999px;
@@ -121,7 +125,8 @@ const STYLE = `
   .event.edge .hint { display: none; }
   .status { font-size: 12px; color: var(--secondary-text-color); margin-top: 4px; }
   @container (max-width: 480px) {
-    .title { font-size: 15px; }
+    .title, .name { font-size: 15px; }
+    .name + .title { font-size: 12px; }
     .day { font-size: 12px; }
     .day small { font-size: 9px; }
     .lesson { min-height: 36px; }
@@ -495,7 +500,9 @@ class EdookitTimetableCard extends HTMLElement {
       return;
     }
 
-    if (showHeader) this._body.append(this._renderHead(week, t));
+    const name = this._name();
+    if (showHeader) this._body.append(this._renderHead(week, t, name));
+    else if (name) this._body.append(h("div", "name", name));
     if (!week.loaded || week.periods.length === 0) {
       this._body.append(h("div", "status", t.notLoaded));
       return;
@@ -505,9 +512,21 @@ class EdookitTimetableCard extends HTMLElement {
     if (this._retryTimer !== null) this._body.append(h("div", "status", t.unavailable));
   }
 
-  _renderHead(week, t) {
+  _name() {
+    const title = this._config && this._config.title;
+    return typeof title === "string" ? title.trim() : "";
+  }
+
+  _renderHead(week, t, name) {
     const head = h("div", "head");
-    head.append(h("div", "title", weekTitle(week.monday)));
+    const date = h("div", "title", weekTitle(week.monday));
+    if (name) {
+      const heading = h("div", "heading");
+      heading.append(h("div", "name", name), date);
+      head.append(heading);
+    } else {
+      head.append(date);
+    }
     const switcher = h("div", "switch");
     [t.thisWeek, t.nextWeek].forEach((label, index) => {
       const button = h("button", "", label);
@@ -760,6 +779,7 @@ const EDITOR_STRINGS = {
   cs: {
     labels: {
       entity: "Rozvrh",
+      title: "Nadpis",
       style: "Vzhled",
       language: "Jazyk",
       show_header: "Záhlaví s datem a přepínačem týdnů",
@@ -768,6 +788,7 @@ const EDITOR_STRINGS = {
       show_room: "Učebna na dlaždici",
     },
     helpers: {
+      title: "Třeba jméno dítěte, když máte víc rozvrhů.",
       style: "Záře je pro tmavé dashboardy bez rámečků karet.",
       language: "Bez výběru se řídí jazykem Home Assistantu.",
     },
@@ -776,6 +797,7 @@ const EDITOR_STRINGS = {
   en: {
     labels: {
       entity: "Timetable",
+      title: "Title",
       style: "Style",
       language: "Language",
       show_header: "Header with date and week switch",
@@ -784,6 +806,7 @@ const EDITOR_STRINGS = {
       show_room: "Room on the tiles",
     },
     helpers: {
+      title: "For example the child's name, when you have more than one timetable.",
       style: "Glow is for dark dashboards without card boxes.",
       language: "Leave empty to follow the Home Assistant language.",
     },
@@ -795,6 +818,7 @@ function editorSchema(t, entities) {
   const select = (options) => ({ select: { mode: "dropdown", options } });
   return [
     { name: "entity", required: true, selector: { entity: { include_entities: entities } } },
+    { name: "title", selector: { text: {} } },
     {
       type: "grid",
       name: "",
