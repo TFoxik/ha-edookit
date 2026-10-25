@@ -46,6 +46,7 @@ async function main() {
     JSON.stringify({
       head: root.findAll(hasClass("head")).length > 0,
       title: titles.length ? titles[0].textContent : null,
+      names: root.findAll(hasClass("name")).map((node) => node.textContent),
       buttons: root.findAll((node) => node.tagName === "button" && hasClass("switch")(node.parent))
         .length,
       days: root
