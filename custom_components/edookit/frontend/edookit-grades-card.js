@@ -39,42 +39,69 @@ const STRINGS = {
 };
 
 const STYLE = `
-  :host { display: block; }
-  ha-card { display: block; padding: 12px; }
+  :host { display: block;
+    --t-title: var(--edookit-font-title, 16px); --t-text: var(--edookit-font-text, 14px);
+    --t-meta: var(--edookit-font-meta, 12px); --t-min: var(--edookit-font-min, 11px); }
+  ha-card { display: block; padding: 12px; font-size: var(--t-text); }
   .card { color: var(--primary-text-color); --new: var(--edookit-new-color, #ff9800); }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
     margin-bottom: 8px; }
-  .title { font-size: 18px; font-weight: 600; }
-  .status { font-size: 13px; color: var(--secondary-text-color); padding: 4px 0; }
+  .title { font-size: var(--t-title); font-weight: 600; }
+  .status { font-size: var(--t-meta); color: var(--secondary-text-color); padding: 4px 0; }
   .mark { flex: none; display: inline-flex; align-items: center; justify-content: center;
-    min-width: 24px; height: 24px; padding: 0 4px; box-sizing: border-box; border-radius: 6px;
-    font-size: 13px; font-weight: 700; color: #fff; }
+    min-width: 2em; height: 2em; padding: 0 4px; box-sizing: border-box; border-radius: 6px;
+    font-size: var(--t-meta); font-weight: 700; color: #fff; }
   .m1 { background: #43a047; } .m2 { background: #7cb342; }
   .m3 { background: #fbc02d; color: #212121; }
   .m4 { background: #fb8c00; } .m5 { background: #e53935; } .mx { background: #9e9e9e; }
   .big { display: flex; gap: 12px; align-items: center; padding: 10px; margin-bottom: 6px;
     border-radius: 10px; background: var(--secondary-background-color); }
   .big .mark { min-width: 48px; height: 48px; font-size: 26px; border-radius: 10px; }
-  .big .topic { font-size: 15px; font-weight: 600; }
+  .big .topic { font-weight: 600; }
   .main { min-width: 0; flex: 1; }
   .topic { overflow-wrap: anywhere; }
-  .meta { font-size: 12px; color: var(--secondary-text-color); }
-  .new { margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px;
+  .meta { font-size: var(--t-meta); color: var(--secondary-text-color); }
+  .new { margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: var(--t-min);
     font-weight: 600; background: var(--new); color: #fff; }
   .row { display: flex; gap: 10px; align-items: center; padding: 6px 0;
     border-top: 1px solid var(--divider-color); }
   .clickable { cursor: pointer; }
   .srow, .shead { display: flex; gap: 8px; align-items: center; padding: 5px 0;
     border-top: 1px solid var(--divider-color); }
-  .shead { border-top: none; font-size: 12px; color: var(--secondary-text-color); }
+  .shead { border-top: none; font-size: var(--t-meta); color: var(--secondary-text-color); }
   .short { flex: none; width: 56px; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; }
   .marks { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-  .avg, .att { flex: none; width: 40px; text-align: right; font-size: 13px; }
+  .avg, .att { flex: none; width: 40px; text-align: right; font-size: var(--t-meta); }
   .none { color: var(--secondary-text-color); }
-  .fold { font-size: 12px; color: var(--secondary-text-color); padding: 6px 0;
+  .fold { font-size: var(--t-meta); color: var(--secondary-text-color); padding: 6px 0;
     border-top: 1px solid var(--divider-color); }
 `;
+
+const FONT_SIZES = ["title", "text", "meta", "min"];
+
+function checkFontSizes(sizes) {
+  if (sizes === undefined) return;
+  if (sizes === null || typeof sizes !== "object" || Array.isArray(sizes)) {
+    throw new Error(`font_sizes must be a map with ${FONT_SIZES.join(", ")}`);
+  }
+  for (const [key, value] of Object.entries(sizes)) {
+    if (!FONT_SIZES.includes(key)) {
+      throw new Error(`font_sizes takes only ${FONT_SIZES.join(", ")}`);
+    }
+    if (!(typeof value === "number" && value >= 8 && value <= 48)) {
+      throw new Error(`font_sizes.${key} must be a number of pixels from 8 to 48`);
+    }
+  }
+}
+
+// An inline style on the host beats the :host defaults and any theme value.
+function applyFontSizes(host, sizes) {
+  for (const key of FONT_SIZES) {
+    if (sizes && sizes[key] !== undefined) host.style.setProperty(`--t-${key}`, `${sizes[key]}px`);
+    else host.style.removeProperty(`--t-${key}`);
+  }
+}
 
 function h(tag, className, text) {
   const el = document.createElement(tag);
@@ -153,6 +180,7 @@ class EdookitGradesCard extends HTMLElement {
     if (!config || !config.entity) {
       throw new Error("The edookit-grades-card needs an entity");
     }
+    checkFontSizes(config.font_sizes);
     if (config.view !== undefined && !VIEWS.includes(config.view)) {
       throw new Error(`view must be one of ${VIEWS.join(", ")}`);
     }
@@ -162,6 +190,7 @@ class EdookitGradesCard extends HTMLElement {
     }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
     this._config = { ...DEFAULTS, ...config };
+    applyFontSizes(this, config.font_sizes);
     if (entityChanged) {
       this._payload = null;
       this._seenHere.clear();

@@ -183,6 +183,26 @@ max_grades: 5       # optional; grades in the latest view; default 5
 language: cs        # optional; default = your Home Assistant language
 ```
 
+## Text size
+
+All three cards share one text scale, so they look alike next to each other:
+titles 16px, text 14px, secondary text 12px, and nothing smaller than 11px.
+The subject codes on timetable tiles and the big mark on the grades card are
+sized to fit their boxes and stay as they are.
+
+To change the scale for every Edookit card, set these CSS variables in a
+theme: `--edookit-font-title`, `--edookit-font-text`, `--edookit-font-meta`
+and `--edookit-font-min`. To change one card, give it `font_sizes` (pixels,
+8-48; any step you leave out keeps the shared value):
+
+```yaml
+type: custom:edookit-messages-card
+entity: sensor.edookit_zs_example_unread_messages
+font_sizes:
+  title: 18
+  text: 15
+```
+
 ## Installation
 
 Requires Home Assistant 2026.9 or newer.

@@ -2,13 +2,25 @@
 const fs = require("fs");
 const vm = require("vm");
 
+class FakeStyle {
+  _props = {};
+
+  setProperty(name, value) {
+    this._props[name] = String(value);
+  }
+
+  removeProperty(name) {
+    delete this._props[name];
+  }
+}
+
 class FakeNode {
   constructor(tag, text = "") {
     this.tagName = tag;
     this.className = "";
     this.children = [];
     this.attributes = {};
-    this.style = {};
+    this.style = new FakeStyle();
     this._text = text;
     this.parent = null;
     this.listeners = {};
