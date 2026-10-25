@@ -63,30 +63,32 @@ const STRINGS = {
 };
 
 const STYLE = `
-  :host { display: block; position: relative; }
-  ha-card { display: block; padding: 12px; }
+  :host { display: block; position: relative;
+    --t-title: var(--edookit-font-title, 16px); --t-text: var(--edookit-font-text, 14px);
+    --t-meta: var(--edookit-font-meta, 12px); --t-min: var(--edookit-font-min, 11px); }
+  ha-card { display: block; padding: 12px; font-size: var(--t-text); }
   .card { container-type: inline-size; color: var(--primary-text-color);
     --ev: var(--edookit-event-color, #7F77DD); }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
     flex-wrap: wrap; margin-bottom: 8px; }
-  .title { font-size: 18px; font-weight: 600; }
+  .title, .name { font-size: var(--t-title); font-weight: 600; }
   .heading { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
-  .name { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
-  .name + .title { font-size: 14px; font-weight: 400; color: var(--secondary-text-color); }
+  .name { overflow-wrap: anywhere; }
+  .name + .title { font-size: var(--t-meta); font-weight: 400; color: var(--secondary-text-color); }
   .card > .name { margin-bottom: 8px; }
   .switch { display: flex; gap: 6px; }
-  .switch button { font: inherit; font-size: 12px; padding: 3px 12px; min-height: 36px;
+  .switch button { font: inherit; font-size: var(--t-meta); padding: 3px 12px; min-height: 36px;
     border-radius: 999px;
     border: 1px solid var(--divider-color); background: none; color: var(--secondary-text-color);
     cursor: pointer; }
   .switch button[aria-pressed="true"] { background: var(--primary-color);
     border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
   .grid { display: grid; --gap: 4px; gap: var(--gap); }
-  .period-head { grid-row: 1; align-self: end; font-size: 10px; line-height: 1.2; text-align: center;
+  .period-head { grid-row: 1; align-self: end; font-size: var(--t-min); line-height: 1.2; text-align: center;
     color: var(--secondary-text-color); }
-  .period-head b { display: block; font-size: 12px; color: var(--primary-text-color); }
-  .day { font-size: 14px; font-weight: 600; line-height: 1.1; padding-top: 6px; }
-  .day small { display: block; font-weight: 400; font-size: 10px;
+  .period-head b { display: block; font-size: var(--t-meta); color: var(--primary-text-color); }
+  .day { font-weight: 600; line-height: 1.1; padding-top: 6px; }
+  .day small { display: block; font-weight: 400; font-size: var(--t-min);
     color: var(--secondary-text-color); }
   .day.today, .day.today small { color: var(--primary-color); }
   .today-row { grid-column: 1 / -1; margin: calc(-1 * var(--gap)); border-radius: 12px;
@@ -99,12 +101,11 @@ const STYLE = `
     background: var(--secondary-background-color); }
   .lesson .code { font-size: 20px; font-weight: 500; line-height: 1.15; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
-  .lesson .room { font-size: 10px; color: var(--secondary-text-color); overflow: hidden;
+  .lesson .room { font-size: var(--t-min); color: var(--secondary-text-color); overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .lesson.noroom .code { font-size: 28px; }
-  .lesson.long .code { font-size: 11px; white-space: normal; overflow-wrap: anywhere;
+  .lesson.long .code { font-size: var(--t-min); white-space: normal; overflow-wrap: anywhere;
     hyphens: auto; }
-  .lesson.longer .code { font-size: 9px; }
   .lesson.changed { border-color: var(--primary-color); }
   .lesson.cancelled { opacity: 0.55; }
   .lesson.cancelled .code { text-decoration: line-through; }
@@ -113,29 +114,24 @@ const STYLE = `
     gap: 1px; padding: 5px 6px; text-align: left; border-radius: 8px;
     border: 2px solid var(--ev);
     background: color-mix(in srgb, var(--ev) 14%, var(--card-background-color, #fff)); }
-  .event .etitle { font-size: 12px; font-weight: 600; line-height: 1.2; overflow: hidden;
+  .event .etitle { font-size: var(--t-meta); font-weight: 600; line-height: 1.2; overflow: hidden;
     overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical;
     -webkit-line-clamp: 2; line-clamp: 2;
     color: color-mix(in srgb, var(--ev) 55%, var(--primary-text-color)); }
-  .event .esub { font-size: 10px; line-height: 1.2;
+  .event .esub { font-size: var(--t-min); line-height: 1.2;
     color: color-mix(in srgb, var(--ev) 70%, var(--secondary-text-color)); }
   .event.allday { text-align: center; }
   .event.edge { padding: 4px 2px; text-align: center; }
-  .event.edge .etitle { font-size: 10px; }
+  .event.edge .etitle { font-size: var(--t-min); }
   .event.edge .hint { display: none; }
-  .status { font-size: 12px; color: var(--secondary-text-color); margin-top: 4px; }
+  .status { font-size: var(--t-meta); color: var(--secondary-text-color); margin-top: 4px; }
   @container (max-width: 480px) {
-    .title, .name { font-size: 15px; }
-    .name + .title { font-size: 12px; }
-    .day { font-size: 12px; }
-    .day small { font-size: 9px; }
+    .day { font-size: var(--t-meta); }
     .lesson { min-height: 36px; }
     .lesson .code { font-size: 15px; }
     .lesson.noroom .code { font-size: 20px; }
-    .lesson .room { font-size: 9px; }
-    .lesson.long .code { font-size: 9px; }
-    .lesson.longer .code { font-size: 8px; }
-    .event .etitle { font-size: 11px; }
+    .lesson.long .code { font-size: var(--t-min); }
+    .event .etitle { font-size: var(--t-min); }
     .event .hint { display: none; }
   }
   .overlay { position: absolute; inset: 0; z-index: 1; box-sizing: border-box; padding: 12px;
@@ -145,8 +141,8 @@ const STYLE = `
     overflow: auto; padding: 12px 14px; border-radius: 12px; outline: none;
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff); color: var(--primary-text-color);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); font-size: 13px; }
-  .panel h4 { margin: 0; font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); font-size: var(--t-text); }
+  .panel h4 { margin: 0; font-size: var(--t-title); line-height: 1.25; overflow-wrap: anywhere; }
   .panel .when { margin: 2px 0 8px; color: var(--secondary-text-color); }
   .panel .row { display: flex; gap: 10px; margin: 4px 0; }
   .panel .label { flex: none; width: 84px; color: var(--secondary-text-color); }
@@ -188,6 +184,31 @@ const STYLE = `
     color: var(--primary-color);
     text-shadow: 0 0 10px color-mix(in srgb, var(--primary-color) 70%, transparent); }
 `;
+
+const FONT_SIZES = ["title", "text", "meta", "min"];
+
+function checkFontSizes(sizes) {
+  if (sizes === undefined) return;
+  if (sizes === null || typeof sizes !== "object" || Array.isArray(sizes)) {
+    throw new Error(`font_sizes must be a map with ${FONT_SIZES.join(", ")}`);
+  }
+  for (const [key, value] of Object.entries(sizes)) {
+    if (!FONT_SIZES.includes(key)) {
+      throw new Error(`font_sizes takes only ${FONT_SIZES.join(", ")}`);
+    }
+    if (!(typeof value === "number" && value >= 8 && value <= 48)) {
+      throw new Error(`font_sizes.${key} must be a number of pixels from 8 to 48`);
+    }
+  }
+}
+
+// An inline style on the host beats the :host defaults and any theme value.
+function applyFontSizes(host, sizes) {
+  for (const key of FONT_SIZES) {
+    if (sizes && sizes[key] !== undefined) host.style.setProperty(`--t-${key}`, `${sizes[key]}px`);
+    else host.style.removeProperty(`--t-${key}`);
+  }
+}
 
 function userLanguage(hass) {
   const locale = hass && hass.locale && hass.locale.language;
@@ -300,12 +321,14 @@ class EdookitTimetableCard extends HTMLElement {
     if (!config || !config.entity) {
       throw new Error("The edookit-timetable-card needs an entity");
     }
+    checkFontSizes(config.font_sizes);
     const style = config.style ?? DEFAULTS.style;
     if (!STYLES.includes(style)) {
       throw new Error(`style must be one of ${STYLES.join(", ")}`);
     }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
     this._config = { ...DEFAULTS, ...config, style };
+    applyFontSizes(this, config.font_sizes);
     if (entityChanged) {
       this._payload = null;
       this._lastToday = null;
@@ -655,7 +678,7 @@ class EdookitTimetableCard extends HTMLElement {
   _renderLesson(lesson, date, dayIndex, t) {
     const classes = ["lesson"];
     const text = lesson.code || lesson.subject || "";
-    if (!lesson.code && text.length > 6) classes.push(text.length > 14 ? "longer" : "long");
+    if (!lesson.code && text.length > 6) classes.push("long");
     if (lesson.changed) classes.push("changed");
     if (lesson.cancelled) classes.push("cancelled");
     const showRoom = this._config.show_room !== false;

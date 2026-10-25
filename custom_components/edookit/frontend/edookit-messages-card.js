@@ -55,15 +55,17 @@ const BODY_TAGS = new Set(["p", "br", "strong", "em", "u", "ul", "ol", "li", "a"
 const SAFE_HREF = /^https?:\/\//i;
 
 const STYLE = `
-  :host { display: block; }
-  ha-card { display: block; padding: 12px; }
+  :host { display: block;
+    --t-title: var(--edookit-font-title, 16px); --t-text: var(--edookit-font-text, 14px);
+    --t-meta: var(--edookit-font-meta, 12px); --t-min: var(--edookit-font-min, 11px); }
+  ha-card { display: block; padding: 12px; font-size: var(--t-text); }
   .card { color: var(--primary-text-color); --dot: var(--edookit-unread-color, #ff9800); }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
     margin-bottom: 4px; }
-  .title { font-size: 18px; font-weight: 600; }
-  .badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: var(--dot);
+  .title { font-size: var(--t-title); font-weight: 600; }
+  .badge { font-size: var(--t-meta); padding: 2px 10px; border-radius: 999px; background: var(--dot);
     color: #fff; }
-  .status { font-size: 12px; color: var(--secondary-text-color); margin-top: 4px; }
+  .status { font-size: var(--t-meta); color: var(--secondary-text-color); margin-top: 4px; }
   .row { display: flex; gap: 8px; padding: 8px 0; cursor: pointer; outline: none; }
   .style-classic .row { border-top: 1px solid var(--divider-color); }
   .row:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); }
@@ -72,56 +74,78 @@ const STYLE = `
   .main { min-width: 0; flex: 1; }
   .subject { overflow-wrap: anywhere; }
   .row.unread .subject { font-weight: 600; }
-  .meta { font-size: 12px; color: var(--secondary-text-color); }
-  .when { flex: none; font-size: 12px; color: var(--secondary-text-color); }
-  .preview { font-size: 13px; color: var(--secondary-text-color); margin-top: 2px;
+  .meta { font-size: var(--t-meta); color: var(--secondary-text-color); }
+  .when { flex: none; font-size: var(--t-meta); color: var(--secondary-text-color); }
+  .preview { font-size: var(--t-meta); color: var(--secondary-text-color); margin-top: 2px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .message { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+  .message { line-height: 1.45; overflow-wrap: anywhere; }
   .inline { margin: 0 0 8px 16px; padding: 4px 0 4px 10px; border-left: 3px solid var(--dot); }
   .message .meta { margin-bottom: 6px; }
   .message p { margin: 0 0 8px; }
   .message ul, .message ol { margin: 0 0 8px; padding-left: 20px; }
   .message a { color: var(--primary-color); }
   .compact .head { margin-bottom: 0; }
-  .compact .title { font-size: 16px; }
   .compact .row { padding: 4px 0; }
-  .compact .preview { font-size: 12px; margin-top: 0; }
-  .style-minimal .title { font-size: 15px; }
+  .compact .preview { margin-top: 0; }
   .style-minimal .badge { background: none; color: var(--dot); padding: 0; font-weight: 600; }
-  .style-minimal .row { align-items: center; padding: 5px 0; font-size: 13px; }
+  .style-minimal .row { align-items: center; padding: 5px 0; }
   .style-minimal .dot { width: 6px; height: 6px; margin-top: 0; }
   .style-minimal .subject { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; }
   .style-minimal.compact .row { padding: 2px 0; }
-  .style-modern .title { font-size: 20px; }
   .style-modern .head { margin-bottom: 10px; }
   .style-modern .row { gap: 10px; padding: 10px; margin-bottom: 8px;
     border-radius: 14px; background: var(--secondary-background-color); }
   .style-modern .row.unread { box-shadow: inset 3px 0 0 var(--dot);
     background: color-mix(in srgb, var(--dot) 8%, var(--secondary-background-color)); }
   .style-modern.compact .row { padding: 6px 8px; margin-bottom: 4px; }
-  .avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex;
-    align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
-  .style-modern.compact .avatar { width: 28px; height: 28px; font-size: 12px; }
+  .avatar { flex: none; width: 2.4em; height: 2.4em; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-weight: 600; }
+  .style-modern.compact .avatar { font-size: var(--t-meta); }
   .top { display: flex; justify-content: space-between; gap: 6px; }
-  .sender { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden;
+  .sender { font-weight: 600; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .style-modern .preview { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2;
     -webkit-box-orient: vertical; }
   .style-modern .inline { margin-left: 44px; }
-  .error { font-size: 13px; color: var(--error-color, #db4437); }
+  .error { color: var(--error-color, #db4437); }
   .overlay { position: fixed; inset: 0; z-index: 10; box-sizing: border-box; padding: 16px;
     display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); }
   .panel { box-sizing: border-box; width: 100%; max-width: 560px; max-height: 100%;
     overflow: auto; padding: 14px 16px; border-radius: 12px; outline: none;
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff); color: var(--primary-text-color);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); }
-  .panel h4 { margin: 0 0 2px; font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); font-size: var(--t-text); }
+  .panel h4 { margin: 0 0 2px; font-size: var(--t-title); line-height: 1.25; overflow-wrap: anywhere; }
   .panel .close { font: inherit; margin-top: 8px; padding: 0 16px; min-height: 36px;
     border-radius: 999px; cursor: pointer; border: 1px solid var(--primary-color);
     background: var(--primary-color); color: var(--text-primary-color, #fff); }
 `;
+
+const FONT_SIZES = ["title", "text", "meta", "min"];
+
+function checkFontSizes(sizes) {
+  if (sizes === undefined) return;
+  if (sizes === null || typeof sizes !== "object" || Array.isArray(sizes)) {
+    throw new Error(`font_sizes must be a map with ${FONT_SIZES.join(", ")}`);
+  }
+  for (const [key, value] of Object.entries(sizes)) {
+    if (!FONT_SIZES.includes(key)) {
+      throw new Error(`font_sizes takes only ${FONT_SIZES.join(", ")}`);
+    }
+    if (!(typeof value === "number" && value >= 8 && value <= 48)) {
+      throw new Error(`font_sizes.${key} must be a number of pixels from 8 to 48`);
+    }
+  }
+}
+
+// An inline style on the host beats the :host defaults and any theme value.
+function applyFontSizes(host, sizes) {
+  for (const key of FONT_SIZES) {
+    if (sizes && sizes[key] !== undefined) host.style.setProperty(`--t-${key}`, `${sizes[key]}px`);
+    else host.style.removeProperty(`--t-${key}`);
+  }
+}
 
 function h(tag, className, text) {
   const el = document.createElement(tag);
@@ -250,6 +274,7 @@ class EdookitMessagesCard extends HTMLElement {
     if (!config || !config.entity) {
       throw new Error("The edookit-messages-card needs an entity");
     }
+    checkFontSizes(config.font_sizes);
     if (config.open !== undefined && config.open !== "inline" && config.open !== "popup") {
       throw new Error("open must be inline or popup");
     }
@@ -262,6 +287,7 @@ class EdookitMessagesCard extends HTMLElement {
     }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
     this._config = { ...DEFAULTS, ...config };
+    applyFontSizes(this, config.font_sizes);
     if (entityChanged) {
       this._payload = null;
       this._close();
