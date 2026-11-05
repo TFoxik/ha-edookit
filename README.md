@@ -134,7 +134,7 @@ type: custom:edookit-messages-card
 entity: sensor.edookit_zs_example_unread_messages
 style: classic      # classic, minimal (one line each) or modern (tiles with initials)
 open: inline        # inline (in the card) or popup; default inline
-max_messages: 5     # optional; default 5
+max_messages: 5     # optional; default 5; tap the title to see the rest
 unread_only: false  # optional; list only unread messages
 show_preview: true  # optional; false hides the first line of the text
 compact: false      # optional; tighter rows
@@ -143,6 +143,9 @@ show_header: true   # optional
 ```
 
 The unread count appears in the header only while something is unread.
+When the inbox holds more than `max_messages`, the title shows how many
+are left (**+2**); tap it to list them all and again to go back. With the
+header turned off, the same control sits under the list.
 
 Every Home Assistant user who can see the dashboard can open messages, the
 same as the other Edookit data. To limit that, turn on **Only administrators

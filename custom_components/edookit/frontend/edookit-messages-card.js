@@ -14,11 +14,16 @@ const DEFAULTS = {
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+function csPlural(n, one, few, many) {
+  if (n === 1) return one;
+  return n >= 2 && n <= 4 ? few : many;
+}
+
 const STRINGS = {
   cs: {
     title: "Zprávy",
-    badge: (n) => `${n} ${n === 1 ? "nepřečtená" : n <= 4 ? "nepřečtené" : "nepřečtených"}`,
-    newBadge: (n) => `${n} ${n === 1 ? "nová" : n <= 4 ? "nové" : "nových"}`,
+    badge: (n) => `${n} ${csPlural(n, "nepřečtená", "nepřečtené", "nepřečtených")}`,
+    newBadge: (n) => `${n} ${csPlural(n, "nová", "nové", "nových")}`,
     empty: "Žádné zprávy",
     noUnread: "Žádné nepřečtené zprávy",
     yesterday: "včera",
@@ -29,6 +34,9 @@ const STRINGS = {
     from: "Od",
     to: "Komu",
     close: "Zavřít",
+    showMore: (n) =>
+      n === 1 ? "Zobrazit další zprávu" : `Zobrazit ${csPlural(n, "", "další", "dalších")} ${n} ${csPlural(n, "", "zprávy", "zpráv")}`,
+    showLess: "Zobrazit méně zpráv",
     date: (day, month) => `${day}. ${month}.`,
   },
   en: {
@@ -45,6 +53,8 @@ const STRINGS = {
     from: "From",
     to: "To",
     close: "Close",
+    showMore: (n) => `Show ${n} more ${n === 1 ? "message" : "messages"}`,
+    showLess: "Show fewer messages",
     date: (day, month) => `${day} ${MONTHS[month - 1]}`,
   },
 };
@@ -63,6 +73,13 @@ const STYLE = `
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
     margin-bottom: 4px; }
   .title { font-size: var(--t-title); font-weight: 600; }
+  .more { display: flex; align-items: center; gap: 6px; cursor: pointer; outline: none;
+    border-radius: 6px; }
+  .more:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
+  .more.below { justify-content: center; padding: 6px 0 0; }
+  .count { font-size: var(--t-min); line-height: 1.5; padding: 0 7px; border-radius: 999px;
+    color: var(--secondary-text-color);
+    background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent); }
   .badge { font-size: var(--t-meta); padding: 2px 10px; border-radius: 999px; background: var(--dot);
     color: #fff; }
   .status { font-size: var(--t-meta); color: var(--secondary-text-color); margin-top: 4px; }
@@ -145,6 +162,19 @@ function applyFontSizes(host, sizes) {
     if (sizes && sizes[key] !== undefined) host.style.setProperty(`--t-${key}`, `${sizes[key]}px`);
     else host.style.removeProperty(`--t-${key}`);
   }
+}
+
+function activatable(el, onActivate) {
+  el.setAttribute("role", "button");
+  el.tabIndex = 0;
+  el.addEventListener("click", onActivate);
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onActivate();
+    }
+  });
+  return el;
 }
 
 function h(tag, className, text) {
@@ -256,6 +286,7 @@ class EdookitMessagesCard extends HTMLElement {
     this._language = null;
     this._openId = null;
     this._opened = null;
+    this._expanded = false;
     this._overlay = null;
     this._overlayContent = null;
     this._onKey = (e) => {
@@ -290,6 +321,7 @@ class EdookitMessagesCard extends HTMLElement {
     applyFontSizes(this, config.font_sizes);
     if (entityChanged) {
       this._payload = null;
+      this._expanded = false;
       this._close();
       this._teardown();
     }
@@ -442,9 +474,14 @@ class EdookitMessagesCard extends HTMLElement {
       return;
     }
     if (this._overlay) this._fillOpened(this._overlayContent, t);
-    if (this._config.show_header !== false) {
+    const messages = this._listed(payload);
+    const hidden = Math.max(0, messages.length - this._config.max_messages);
+    const toggles = hidden > 0 && payload.available !== false;
+    const showHeader = this._config.show_header !== false;
+    if (showHeader) {
       const head = h("div", "head");
-      head.append(h("div", "title", t.title));
+      const title = h("div", "title", t.title);
+      head.append(toggles ? this._renderToggle(t, hidden, title) : title);
       if (payload.unread > 0) {
         const badges = { classic: t.badge, minimal: t.newBadge, modern: String };
         head.append(h("div", "badge", badges[style](payload.unread)));
@@ -455,15 +492,18 @@ class EdookitMessagesCard extends HTMLElement {
       this._body.append(h("div", "status", t.unavailable));
       return;
     }
-    const unreadOnly = Boolean(this._config.unread_only);
-    const messages = unreadOnly ? payload.messages.filter((m) => m.unread) : payload.messages;
     if (!messages.length) {
-      this._body.append(h("div", "status", unreadOnly ? t.noUnread : t.empty));
+      this._body.append(h("div", "status", this._config.unread_only ? t.noUnread : t.empty));
       return;
     }
     const today = payload.today || "";
     const days = { today, yesterday: today && previousDay(today) };
-    messages.slice(0, this._config.max_messages).forEach((summary) => {
+    const shown = this._visible(messages);
+    if (!this._popup && this._openId !== null && !shown.some((m) => m.id === this._openId)) {
+      this._openId = null;
+      this._opened = null;
+    }
+    shown.forEach((summary) => {
       this._body.append(this._renderRow(summary, t, style, days));
       if (!this._popup && summary.id === this._openId) {
         const view = h("div", "inline");
@@ -471,21 +511,36 @@ class EdookitMessagesCard extends HTMLElement {
         this._body.append(view);
       }
     });
+    if (toggles && !showHeader) this._body.append(this._renderToggle(t, hidden));
+  }
+
+  _listed(payload) {
+    if (!this._config.unread_only) return payload.messages;
+    return payload.messages.filter((m) => m.unread);
+  }
+
+  _visible(messages) {
+    return this._expanded ? messages : messages.slice(0, this._config.max_messages);
+  }
+
+  _renderToggle(t, hidden, title) {
+    const toggle = activatable(h("div", title ? "more" : "more below"), () => {
+      this._expanded = !this._expanded;
+      this._render();
+    });
+    const label = this._expanded ? t.showLess : t.showMore(hidden);
+    toggle.setAttribute("aria-expanded", String(this._expanded));
+    toggle.setAttribute("aria-label", title ? `${t.title}: ${label}` : label);
+    if (title) toggle.append(title);
+    if (!this._expanded) toggle.append(h("span", "count", `+${hidden}`));
+    return toggle;
   }
 
   _renderRow(summary, t, style, days) {
     const row = h("div", summary.unread ? "row unread" : "row");
     row.setAttribute("data-id", String(summary.id));
-    row.setAttribute("role", "button");
     row.setAttribute("aria-expanded", String(summary.id === this._openId));
-    row.tabIndex = 0;
-    row.addEventListener("click", () => this._toggle(summary.id));
-    row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        this._toggle(summary.id);
-      }
-    });
+    activatable(row, () => this._toggle(summary.id));
     const when = h("span", "when", shortLabel(t, summary.sent, days));
     if (style === "minimal") {
       row.append(h("div", "dot"), h("span", "subject", summary.subject), when);
