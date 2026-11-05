@@ -153,6 +153,59 @@ def test_lists_five_messages_by_default() -> None:
     assert len(_find(out, _cls("row"))) == 5
 
 
+def test_title_counts_the_hidden_messages() -> None:
+    out = _render({"max_messages": 1}, [_summary(9000 + i) for i in range(3)])
+
+    toggles = _find(out, _cls("more"))
+    assert len(toggles) == 1
+    assert toggles[0]["attrs"]["role"] == "button"
+    assert toggles[0]["attrs"]["aria-expanded"] == "false"
+    assert any(_cls("title")(n) for n in _walk(toggles[0]))
+    assert [_text(n) for n in _find(out, _cls("count"))] == ["+2"]
+
+
+def test_title_is_plain_when_everything_fits() -> None:
+    out = _render({"max_messages": 3}, [_summary(9000 + i) for i in range(3)])
+
+    assert _find(out, _cls("more")) == []
+    assert [_text(n) for n in _find(out, _cls("title"))] == ["Zprávy"]
+
+
+def test_tapping_the_title_shows_every_message_then_collapses() -> None:
+    summaries = [_summary(9000 + i) for i in range(3)]
+
+    expanded = _render({"max_messages": 1}, summaries, clicks=["more"])
+    assert len(_find(expanded, _cls("row"))) == 3
+    assert _find(expanded, _cls("more"))[0]["attrs"]["aria-expanded"] == "true"
+    assert _find(expanded, _cls("count")) == []
+
+    collapsed = _render({"max_messages": 1}, summaries, clicks=["more", "more"])
+    assert len(_find(collapsed, _cls("row"))) == 1
+    assert [_text(n) for n in _find(collapsed, _cls("count"))] == ["+2"]
+
+
+def test_without_header_the_toggle_sits_under_the_list() -> None:
+    summaries = [_summary(9000 + i) for i in range(3)]
+
+    out = _render({"max_messages": 1, "show_header": False}, summaries, clicks=["more"])
+
+    assert _find(out, _cls("title")) == []
+    assert len(_find(out, _cls("row"))) == 3
+    assert len(_find(out, _cls("more"))) == 1
+
+
+def test_collapsing_closes_a_message_that_gets_hidden() -> None:
+    out = _render(
+        {"max_messages": 1},
+        [_summary(9000), _summary(9003)],
+        ws={"9003": _message(BODY)},
+        clicks=["more", "row:9003", "more", "more"],
+    )
+
+    assert len(_find(out, _cls("row"))) == 2
+    assert _find(out, _cls("message")) == []
+
+
 def test_unread_row_is_marked() -> None:
     out = _render(summaries=[_summary(9003, True), _summary(9002)])
 
