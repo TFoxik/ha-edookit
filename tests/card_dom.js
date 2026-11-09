@@ -99,7 +99,7 @@ class FakeHTMLElement extends FakeNode {
   }
 }
 
-function loadCard(script) {
+function loadCard(script, timers = {}) {
   const defined = new Map();
   const context = vm.createContext({
     document: {
@@ -118,12 +118,48 @@ function loadCard(script) {
       get: (tag) => defined.get(tag),
       define: (tag, cls) => defined.set(tag, cls),
     },
-    setTimeout,
-    clearTimeout,
+    setTimeout: timers.setTimeout || setTimeout,
+    clearTimeout: timers.clearTimeout || clearTimeout,
   });
   context.window = context;
   vm.runInContext(fs.readFileSync(script, "utf8"), context);
   return defined;
 }
 
-module.exports = { FakeNode, hasClass, loadCard };
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+// Text set through textContent is serialized as a #text child, as the browser makes it.
+function serialize(node) {
+  if (node.tagName === "#text") return { tag: "#text", text: node._text };
+  const text = node.tagName === "style" || !node._text ? [] : [{ tag: "#text", text: node._text }];
+  return {
+    tag: node.tagName,
+    cls: node.className,
+    attrs: node.attributes,
+    children: [...text, ...node.children.map(serialize)],
+  };
+}
+
+// Fake timers for loadCard; fire(ms) runs the ones due within ms.
+function fakeTimers() {
+  let nextId = 1;
+  const pending = new Map();
+  return {
+    setTimeout: (fn, delay) => {
+      const id = nextId++;
+      pending.set(id, { fn, delay });
+      return id;
+    },
+    clearTimeout: (id) => pending.delete(id),
+    delays: () => [...pending.values()].map((timer) => timer.delay),
+    fire: (ms) =>
+      [...pending.entries()]
+        .filter(([, timer]) => timer.delay <= ms)
+        .forEach(([id, timer]) => {
+          pending.delete(id);
+          timer.fn();
+        }),
+  };
+}
+
+module.exports = { FakeNode, fakeTimers, hasClass, loadCard, serialize, settle };

@@ -1,6 +1,7 @@
 // Drives a card's visual editor against the fake DOM and prints what ha-form gets.
-// Input on stdin: {"card": "timetable" | "messages" | "grades", "config": {...}, "language": "cs",
-// "entities": [{entity_id, platform, translation_key}, ...], "change": {...} | null}.
+// Input on stdin: {"card": "timetable" | "messages" | "grades" | "homework", "config": {...},
+// "language": "cs", "entities": [{entity_id, platform, translation_key}, ...],
+// "change": {...} | null}.
 // "change" holds the fields edited in the form; the editor's answer is printed.
 const fs = require("fs");
 const path = require("path");
@@ -40,6 +41,11 @@ async function main() {
       fields: fields.map((field) => field.name),
       entities: fields.find((field) => field.name === "entity").selector.entity.include_entities,
       labels: Object.fromEntries(fields.map((field) => [field.name, form.computeLabel(field)])),
+      options: Object.fromEntries(
+        fields
+          .filter((field) => field.selector.select)
+          .map((field) => [field.name, field.selector.select.options]),
+      ),
       changed,
     }),
   );

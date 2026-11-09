@@ -116,6 +116,7 @@ def _lesson_payload(slot: _Slot, replaced_by: str | None) -> dict[str, Any]:
         "start": _hhmm(lesson.start),
         "end": _hhmm(lesson.end),
         "code": lesson.code,
+        "group": lesson.group,
         "subject": lesson.subject,
         "teacher": lesson.teacher,
         "room": lesson.room,

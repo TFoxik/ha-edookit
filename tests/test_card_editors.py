@@ -13,11 +13,13 @@ HARNESS_JS = Path(__file__).parent / "editor_harness.js"
 TIMETABLE = "calendar.edookit_x_timetable"
 UNREAD = "sensor.edookit_x_unread_messages"
 LATEST = "sensor.edookit_x_latest_grade"
+HOMEWORK = "sensor.edookit_x_homework"
 ENTITIES = [
     {"entity_id": TIMETABLE, "platform": "edookit", "translation_key": "timetable"},
     {"entity_id": "calendar.renamed", "platform": "edookit", "translation_key": "timetable"},
     {"entity_id": UNREAD, "platform": "edookit", "translation_key": "unread_messages"},
     {"entity_id": LATEST, "platform": "edookit", "translation_key": "latest_grade"},
+    {"entity_id": HOMEWORK, "platform": "edookit", "translation_key": "homework"},
     {
         "entity_id": "sensor.edookit_x_next_lesson",
         "platform": "edookit",
@@ -51,7 +53,7 @@ def _edit(
     return json.loads(result.stdout)
 
 
-@pytest.mark.parametrize("card", ["timetable", "messages", "grades"])
+@pytest.mark.parametrize("card", ["timetable", "messages", "grades", "homework"])
 def test_card_offers_its_visual_editor(card: str) -> None:
     assert _edit(card, {"entity": "x"})["editorTag"] == f"edookit-{card}-card-editor"
 
@@ -66,6 +68,8 @@ def test_timetable_editor_shows_defaults_for_options_left_out() -> None:
         "show_periods": True,
         "show_days": True,
         "show_room": True,
+        "show_homework": False,
+        "homework_overdue_days": 2,
     }
     assert shown["fields"] == [
         "entity",
@@ -76,7 +80,34 @@ def test_timetable_editor_shows_defaults_for_options_left_out() -> None:
         "show_periods",
         "show_days",
         "show_room",
+        "show_homework",
+        "homework_overdue_days",
     ]
+
+
+def test_timetable_editor_homework_fields() -> None:
+    config = {"type": "custom:edookit-timetable-card", "entity": TIMETABLE}
+    shown = _edit(
+        "timetable",
+        {**config, "show_homework": True, "homework_overdue_days": 4},
+        change={"homework_overdue_days": 2, "show_homework": False},
+    )
+    assert shown["changed"] == config
+    assert {"show_homework", "homework_overdue_days"} <= set(shown["fields"])
+    on = _edit("timetable", config, change={"show_homework": True, "homework_overdue_days": 0})
+    assert on["changed"] == {**config, "show_homework": True, "homework_overdue_days": 0}
+
+
+@pytest.mark.parametrize(
+    ("language", "homework", "days"),
+    [
+        ("cs", "Domácí úkoly na dlaždici", "Dny po termínu"),
+        ("en", "Homework on the tiles", "Days kept after deadline"),
+    ],
+)
+def test_timetable_editor_homework_labels(language: str, homework: str, days: str) -> None:
+    labels = _edit("timetable", {"entity": TIMETABLE}, language=language)["labels"]
+    assert (labels["show_homework"], labels["homework_overdue_days"]) == (homework, days)
 
 
 def test_messages_editor_shows_defaults_for_options_left_out() -> None:
@@ -154,3 +185,88 @@ def test_grades_editor_drops_defaults() -> None:
 @pytest.mark.parametrize(("language", "label"), [("cs", "Zobrazení"), ("en", "View")])
 def test_grades_editor_labels_follow_language(language: str, label: str) -> None:
     assert _edit("grades", {"entity": LATEST}, language=language)["labels"]["view"] == label
+
+
+def test_homework_editor_shows_defaults_for_options_left_out() -> None:
+    shown = _edit("homework", {"entity": HOMEWORK, "max_items": 8})
+
+    assert shown["data"] == {
+        "entity": HOMEWORK,
+        "view": "list",
+        "max_items": 8,
+        "keep_overdue_days": 2,
+        "show_header": True,
+        "show_teacher": True,
+        "group_by_due": True,
+        "show_countdown": True,
+    }
+    assert shown["fields"] == [
+        "entity",
+        "view",
+        "max_items",
+        "keep_overdue_days",
+        "language",
+        "show_header",
+        "show_teacher",
+        "group_by_due",
+        "show_countdown",
+    ]
+
+
+def test_homework_editor_lists_only_homework_sensors() -> None:
+    assert _edit("homework", {"entity": ""})["entities"] == [HOMEWORK]
+
+
+def test_homework_editor_drops_defaults() -> None:
+    shown = _edit(
+        "homework",
+        {"entity": HOMEWORK, "view": "compact"},
+        change={"view": "list", "keep_overdue_days": 3},
+    )
+
+    assert shown["changed"] == {"entity": HOMEWORK, "keep_overdue_days": 3}
+
+
+@pytest.mark.parametrize(
+    ("language", "title", "label", "view", "max_items", "show_header", "views"),
+    [
+        (
+            "cs",
+            "Domácí úkoly",
+            "Dny po termínu",
+            "Zobrazení",
+            "Počet úkolů",
+            "Záhlaví",
+            ["Seznam", "Kompaktní"],
+        ),
+        (
+            "en",
+            "Homework",
+            "Days kept after deadline",
+            "View",
+            "Items shown",
+            "Header",
+            ["List", "Compact"],
+        ),
+    ],
+)
+def test_homework_editor_labels_follow_language(
+    language: str,
+    title: str,
+    label: str,
+    view: str,
+    max_items: str,
+    show_header: str,
+    views: list[str],
+) -> None:
+    shown = _edit("homework", {"entity": HOMEWORK}, language=language)
+    labels = shown["labels"]
+
+    assert labels["entity"] == title
+    assert labels["keep_overdue_days"] == label
+    assert [labels[k] for k in ("view", "max_items", "show_header")] == [
+        view,
+        max_items,
+        show_header,
+    ]
+    assert [o["label"] for o in shown["options"]["view"]] == views
