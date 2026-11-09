@@ -65,6 +65,9 @@
       },
       "latest_grade": {
         "name": "Poslední známka"
+      },
+      "homework": {
+        "name": "Domácí úkoly"
       }
     },
     "calendar": {

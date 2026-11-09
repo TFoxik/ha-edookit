@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime, time, timedelta
-from typing import Any
+from typing import Any, Protocol
 
 import probatio as vol
 from homeassistant.components import websocket_api
@@ -18,8 +19,13 @@ from pyedookit import PORTAL_TZ
 from .const import CONF_MESSAGES_ADMIN_ONLY, DOMAIN
 from .data import EdookitConfigEntry
 from .grades_payload import grades_payload
+from .homework_payload import homework_payload
 from .messages_payload import message_payload, summary_payload
 from .week import build_payload
+
+
+class _Listenable(Protocol):
+    def async_add_listener(self, listener: CALLBACK_TYPE) -> CALLBACK_TYPE: ...
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:
@@ -28,6 +34,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, _get_message)
     websocket_api.async_register_command(hass, _subscribe_grades)
     websocket_api.async_register_command(hass, _mark_grade_seen)
+    websocket_api.async_register_command(hass, _subscribe_homework)
 
 
 def _next_prague_midnight(now: datetime) -> datetime:
@@ -49,6 +56,28 @@ def _loaded_entry(hass: HomeAssistant, entity_id: str) -> EdookitConfigEntry | N
     return entry
 
 
+def _subscribe_source[SourceT: _Listenable](
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+    source_of: Callable[[EdookitConfigEntry], SourceT],
+    payload_of: Callable[[SourceT], dict[str, Any]],
+) -> None:
+    entry = _loaded_entry(hass, msg["entity_id"])
+    if entry is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
+        return
+
+    source = source_of(entry)
+    msg_id = msg["id"]
+
+    @callback
+    def push() -> None:
+        connection.send_message(websocket_api.event_message(msg_id, payload_of(source)))
+
+    _hold_subscription(hass, connection, msg_id, entry, push, source.async_add_listener(push))
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "edookit/week/subscribe",
@@ -59,20 +88,13 @@ def _loaded_entry(hass: HomeAssistant, entity_id: str) -> EdookitConfigEntry | N
 def _subscribe_week(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    entry = _loaded_entry(hass, msg["entity_id"])
-    if entry is None:
-        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
-        return
-
-    memory = entry.runtime_data.memory
-    msg_id = msg["id"]
-
-    @callback
-    def push() -> None:
-        payload = build_payload(_portal_today(), memory.weeks(), memory.events())
-        connection.send_message(websocket_api.event_message(msg_id, payload))
-
-    _hold_subscription(hass, connection, msg_id, entry, push, memory.async_add_listener(push))
+    _subscribe_source(
+        hass,
+        connection,
+        msg,
+        lambda entry: entry.runtime_data.memory,
+        lambda memory: build_payload(_portal_today(), memory.weeks(), memory.events()),
+    )
 
 
 @websocket_api.websocket_command(
@@ -85,20 +107,13 @@ def _subscribe_week(
 def _subscribe_messages(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    entry = _loaded_entry(hass, msg["entity_id"])
-    if entry is None:
-        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
-        return
-
-    coordinator = entry.runtime_data.messages
-    msg_id = msg["id"]
-
-    @callback
-    def push() -> None:
-        payload = summary_payload(coordinator.data, _portal_today())
-        connection.send_message(websocket_api.event_message(msg_id, payload))
-
-    _hold_subscription(hass, connection, msg_id, entry, push, coordinator.async_add_listener(push))
+    _subscribe_source(
+        hass,
+        connection,
+        msg,
+        lambda entry: entry.runtime_data.messages,
+        lambda coordinator: summary_payload(coordinator.data, _portal_today()),
+    )
 
 
 @websocket_api.websocket_command(
@@ -111,20 +126,32 @@ def _subscribe_messages(
 def _subscribe_grades(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    entry = _loaded_entry(hass, msg["entity_id"])
-    if entry is None:
-        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Unknown Edookit entity")
-        return
+    _subscribe_source(
+        hass,
+        connection,
+        msg,
+        lambda entry: entry.runtime_data.grades,
+        lambda coordinator: grades_payload(coordinator.data, _portal_today(), coordinator.seen),
+    )
 
-    coordinator = entry.runtime_data.grades
-    msg_id = msg["id"]
 
-    @callback
-    def push() -> None:
-        payload = grades_payload(coordinator.data, _portal_today(), coordinator.seen)
-        connection.send_message(websocket_api.event_message(msg_id, payload))
-
-    _hold_subscription(hass, connection, msg_id, entry, push, coordinator.async_add_listener(push))
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "edookit/homework/subscribe",
+        vol.Required("entity_id"): cv.entity_id,
+    }
+)
+@callback
+def _subscribe_homework(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    _subscribe_source(
+        hass,
+        connection,
+        msg,
+        lambda entry: entry.runtime_data.homework,
+        lambda coordinator: homework_payload(coordinator.data),
+    )
 
 
 @websocket_api.websocket_command(

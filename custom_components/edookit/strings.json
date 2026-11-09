@@ -65,6 +65,9 @@
       },
       "latest_grade": {
         "name": "Latest grade"
+      },
+      "homework": {
+        "name": "Homework"
       }
     },
     "calendar": {

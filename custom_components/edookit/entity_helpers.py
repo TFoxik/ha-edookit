@@ -6,7 +6,7 @@ from typing import Any
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
-from pyedookit import Lesson
+from pyedookit import Homework, Lesson
 
 from .const import CONF_SCHOOL, DOMAIN
 from .data import EdookitConfigEntry
@@ -61,10 +61,15 @@ def lesson_attributes(lesson: Lesson) -> dict[str, str | None]:
     }
 
 
-def next_lesson(
-    lessons: list[Lesson], now: datetime, *, skip_cancelled: bool
-) -> Lesson | None:
+def next_lesson(lessons: list[Lesson], now: datetime, *, skip_cancelled: bool) -> Lesson | None:
     candidates = [
         ls for ls in lessons if (not skip_cancelled or not ls.is_cancelled) and ls.end >= now
     ]
     return min(candidates, key=lambda ls: ls.start, default=None)
+
+
+def open_homework_count(items: list[Homework] | None) -> int | None:
+    if items is None:
+        return None
+    now = dt_util.now()
+    return sum(1 for item in items if not item.done and item.due is not None and item.due > now)

@@ -31,6 +31,9 @@
       },
       "latest_grade": {
         "default": "mdi:certificate"
+      },
+      "homework": {
+        "default": "mdi:book-open-variant"
       }
     }
   }
