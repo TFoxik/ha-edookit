@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from .capture import capture_enabled
 from .const import CONF_MESSAGES_ADMIN_ONLY, CONF_SCHOOL, CONF_SESSION
 from .data import EdookitConfigEntry
+from .entity_helpers import open_homework_count
 
 TO_REDACT = {CONF_SESSION, CONF_SCHOOL}
 
@@ -30,4 +31,7 @@ async def async_get_config_entry_diagnostics(
         "grades_last_update_success": runtime.grades.last_update_success,
         "grade_count": len(runtime.grades.data.grades) if runtime.grades.data else 0,
         "subject_count": len(runtime.grades.data.subjects) if runtime.grades.data else 0,
+        "homework_last_update_success": runtime.homework.last_update_success,
+        "homework_count": len(runtime.homework.data or []),
+        "homework_open_count": open_homework_count(runtime.homework.data) or 0,
     }

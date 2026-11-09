@@ -19,6 +19,7 @@ from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
 from .frontend_card import async_register_card
 from .grades_coordinator import EdookitGradesCoordinator, async_remove_seen
+from .homework_coordinator import EdookitHomeworkCoordinator
 from .memory import WeekMemory
 from .messages_coordinator import EdookitMessagesCoordinator
 from .school_coordinator import EdookitSchoolCoordinator
@@ -55,9 +56,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     grades = EdookitGradesCoordinator(hass, entry, session)
     await grades.async_load_seen()
     await grades.async_refresh()
+    homework = EdookitHomeworkCoordinator(hass, entry, session)
+    await homework.async_refresh()
 
     entry.runtime_data = EdookitRuntimeData(
-        timetable=timetable, school=school, memory=memory, messages=messages, grades=grades
+        timetable=timetable,
+        school=school,
+        memory=memory,
+        messages=messages,
+        grades=grades,
+        homework=homework,
     )
     _feed_memory(entry, timetable, school, memory)
     if capture_enabled():

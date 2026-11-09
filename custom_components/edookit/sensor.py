@@ -12,8 +12,9 @@ from pyedookit import Lesson
 
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
-from .entity_helpers import EdookitEntity, lesson_attributes, next_lesson
+from .entity_helpers import EdookitEntity, lesson_attributes, next_lesson, open_homework_count
 from .grades_coordinator import EdookitGradesCoordinator
+from .homework_coordinator import EdookitHomeworkCoordinator
 from .messages_coordinator import EdookitMessagesCoordinator
 from .school_coordinator import EdookitSchoolCoordinator
 
@@ -32,6 +33,7 @@ async def async_setup_entry(
             EdookitPaymentsDueSensor(runtime.school, entry),
             EdookitUnreadMessagesSensor(runtime.messages, entry),
             EdookitLatestGradeSensor(runtime.grades, entry),
+            EdookitHomeworkSensor(runtime.homework, entry),
         ]
     )
 
@@ -135,3 +137,16 @@ class EdookitLatestGradeSensor(EdookitEntity[EdookitGradesCoordinator], SensorEn
     def native_value(self) -> str | None:
         grades = self.coordinator.data.grades
         return grades[0].mark if grades else None
+
+
+class EdookitHomeworkSensor(EdookitEntity[EdookitHomeworkCoordinator], SensorEntity):
+    """How many open assignments still have their deadline ahead. Titles, texts,
+    subjects and teachers are left out: entity attributes end up in the
+    recorder's history."""
+
+    key = "homework"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self) -> int | None:
+        return open_homework_count(self.coordinator.data)
