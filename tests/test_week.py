@@ -165,6 +165,7 @@ def test_payload_shape_of_a_lesson_and_a_period():
         "start": "10:00",
         "end": "10:45",
         "code": "M",
+        "group": None,
         "subject": "Matematika",
         "teacher": "Učitel A",
         "room": "1.B",
@@ -173,6 +174,20 @@ def test_payload_shape_of_a_lesson_and_a_period():
         "cancelled": False,
         "replaced_by": None,
     }
+
+
+def test_week_payload_lessons_carry_group():
+    english = Lesson(
+        start=datetime(2026, 10, 12, 8, 0, tzinfo=PORTAL_TZ),
+        end=datetime(2026, 10, 12, 8, 45, tzinfo=PORTAL_TZ),
+        subject="Anglický jazyk",
+        code="Aj 2",
+        group="I.B",
+    )
+    known = WeekLessons(date(2026, 10, 12), [english], FIVE_PERIODS)
+    week = build_payload(date(2026, 10, 12), [known], [])["weeks"][0]
+    lesson = week["days"][0]["lessons"][0]
+    assert (lesson["code"], lesson["group"]) == ("Aj 2", "I.B")
 
 
 def test_event_spanning_midnight_is_clipped_to_each_day():

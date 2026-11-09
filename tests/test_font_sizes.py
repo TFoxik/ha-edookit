@@ -11,13 +11,19 @@ import pytest
 
 FRONTEND = Path(__file__).parent.parent / "custom_components/edookit/frontend"
 HARNESS_JS = Path(__file__).parent / "font_sizes_harness.js"
-CARDS = ["edookit-timetable-card", "edookit-messages-card", "edookit-grades-card"]
+CARDS = [
+    "edookit-timetable-card",
+    "edookit-messages-card",
+    "edookit-grades-card",
+    "edookit-homework-card",
+]
 SCALE = {"title": "16px", "text": "14px", "meta": "12px", "min": "11px"}
 # Tile glyphs and the big grade mark are sized to their boxes, not to the text scale.
 DISPLAY_SIZES = {
     "edookit-timetable-card": ["15px", "20px", "20px", "28px"],
     "edookit-messages-card": [],
     "edookit-grades-card": ["26px"],
+    "edookit-homework-card": [],
 }
 
 

@@ -3,6 +3,7 @@ const EDITOR_TAG = "edookit-timetable-card-editor";
 const RETRY_MS = 30000;
 const DETAIL_TIMEOUT_MS = 60000;
 const MINUTE_MS = 60000;
+const DAY_MS = 86400000;
 const EDGE_TRACK = "minmax(56px, 1.4fr)";
 const EDGE_GAP = "4px";
 const STYLES = ["classic", "glow"];
@@ -12,12 +13,20 @@ const DEFAULTS = {
   show_periods: true,
   show_days: true,
   show_room: true,
+  show_homework: false,
+  homework_overdue_days: 2,
 };
 const PRAGUE_CLOCK = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Prague",
   hour: "2-digit",
   minute: "2-digit",
   hourCycle: "h23",
+});
+const PRAGUE_DATE = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Prague",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
 });
 
 const STRINGS = {
@@ -37,6 +46,8 @@ const STRINGS = {
     teacher: "Učitel",
     room: "Učebna",
     topic: "Učivo",
+    homework: "Úkol",
+    homeworkLine: (text, time) => `${text} (do ${time})`,
     days: ["Po", "Út", "St", "Čt", "Pá"],
     date: (day, month) => `${day}.${month}.`,
   },
@@ -56,6 +67,8 @@ const STRINGS = {
     teacher: "Teacher",
     room: "Room",
     topic: "Topic",
+    homework: "Homework",
+    homeworkLine: (text, time) => `${text} (due ${time})`,
     days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
     date: (day, month) =>
       `${day} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month - 1]}`,
@@ -96,7 +109,7 @@ const STYLE = `
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 55%, transparent); }
   .cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .lesson { font: inherit; color: inherit; cursor: pointer; width: 100%; flex: 1; display: flex; flex-direction: column; justify-content: center;
-    min-width: 0; min-height: 40px; box-sizing: border-box; padding: 4px 2px; text-align: center;
+    position: relative; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 4px 2px; text-align: center;
     border: 1px solid var(--divider-color); border-radius: 8px;
     background: var(--secondary-background-color); }
   .lesson .code { font-size: 20px; font-weight: 500; line-height: 1.15; overflow: hidden;
@@ -107,6 +120,9 @@ const STYLE = `
   .lesson.long .code { font-size: var(--t-min); white-space: normal; overflow-wrap: anywhere;
     hyphens: auto; }
   .lesson.changed { border-color: var(--primary-color); }
+  .lesson .hw { position: absolute; top: 3px; left: 3px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--edookit-soon-color, #e65100); }
+  .lesson .hw.overdue { background: var(--edookit-overdue-color, #e53935); }
   .lesson.cancelled { opacity: 0.55; }
   .lesson.cancelled .code { text-decoration: line-through; }
   .event { font: inherit; color: inherit; cursor: pointer; width: 100%; flex: 1; min-width: 0;
@@ -272,6 +288,117 @@ function shownPeriods(week, hasBefore, hasAfter) {
   );
 }
 
+function parseDue(iso) {
+  const ms = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function pragueDate(ms) {
+  const parts = {};
+  PRAGUE_DATE.formatToParts(ms).forEach(({ type, value }) => {
+    parts[type] = value;
+  });
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function safeCall(unsubscribe) {
+  try {
+    Promise.resolve(unsubscribe()).catch(() => {});
+  } catch (err) {
+    // The server forgets the subscription on its own when it unloads.
+  }
+}
+
+class Feed {
+  constructor(card, message, onEvent, onRetry) {
+    this._card = card;
+    this._message = message;
+    this._onEvent = onEvent;
+    this._onRetry = onRetry;
+    this._unsubscribe = null;
+    this._subscribing = false;
+    this._retryTimer = null;
+    this._generation = 0;
+  }
+
+  get retrying() {
+    return this._retryTimer !== null;
+  }
+
+  get active() {
+    return this._unsubscribe !== null || this._subscribing || this._retryTimer !== null;
+  }
+
+  ensure() {
+    if (this.active) return;
+    this.subscribe();
+  }
+
+  subscribe() {
+    const card = this._card;
+    if (!card._connected || !card._hass || !card._config) return;
+    if (this._unsubscribe || this._subscribing) return;
+    const generation = ++this._generation;
+    this._subscribing = true;
+    let pending;
+    try {
+      pending = card._hass.connection.subscribeMessage(
+        (event) => this._receive(generation, event),
+        this._message(),
+        { resubscribe: false },
+      );
+    } catch (err) {
+      pending = Promise.reject(err);
+    }
+    Promise.resolve(pending).then(
+      (unsubscribe) => {
+        if (generation !== this._generation) {
+          safeCall(unsubscribe);
+          return;
+        }
+        this._subscribing = false;
+        this._unsubscribe = unsubscribe;
+      },
+      () => {
+        if (generation !== this._generation) return;
+        this._subscribing = false;
+        this._scheduleRetry();
+      },
+    );
+  }
+
+  _receive(generation, event) {
+    if (generation !== this._generation || !event) return;
+    if (event.unloaded) {
+      this.teardown();
+      this._scheduleRetry();
+      return;
+    }
+    this._onEvent(event);
+  }
+
+  _scheduleRetry() {
+    if (this._retryTimer !== null) clearTimeout(this._retryTimer);
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this.subscribe();
+    }, RETRY_MS);
+    this._onRetry();
+  }
+
+  teardown() {
+    this._generation++;
+    if (this._retryTimer !== null) {
+      clearTimeout(this._retryTimer);
+      this._retryTimer = null;
+    }
+    const unsubscribe = this._unsubscribe;
+    this._unsubscribe = null;
+    this._subscribing = false;
+    if (unsubscribe) safeCall(unsubscribe);
+  }
+}
+
 class EdookitTimetableCard extends HTMLElement {
   static getConfigElement() {
     return document.createElement(EDITOR_TAG);
@@ -293,10 +420,20 @@ class EdookitTimetableCard extends HTMLElement {
     this._week = 0;
     this._lastToday = null;
     this._connected = false;
-    this._unsubscribe = null;
-    this._subscribing = false;
-    this._retryTimer = null;
-    this._generation = 0;
+    this._homework = null;
+    this._shownHomework = "";
+    this._weekFeed = new Feed(
+      this,
+      () => ({ type: "edookit/week/subscribe", entity_id: this._config.entity }),
+      (event) => this._onWeek(event),
+      () => this._render(),
+    );
+    this._homeworkFeed = new Feed(
+      this,
+      () => ({ type: "edookit/homework/subscribe", entity_id: this._config.entity }),
+      (event) => this._onHomework(event),
+      () => {},
+    );
     this._connection = null;
     this._onReady = () => {
       this._teardown();
@@ -326,11 +463,16 @@ class EdookitTimetableCard extends HTMLElement {
     if (!STYLES.includes(style)) {
       throw new Error(`style must be one of ${STYLES.join(", ")}`);
     }
+    const keep = config.homework_overdue_days;
+    if (keep !== undefined && !(Number.isInteger(keep) && keep >= 0)) {
+      throw new Error("homework_overdue_days must be a whole number, 0 or more");
+    }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
     this._config = { ...DEFAULTS, ...config, style };
     applyFontSizes(this, config.font_sizes);
     if (entityChanged) {
       this._payload = null;
+      this._homework = null;
       this._lastToday = null;
       this._closeDetail();
       this._teardown();
@@ -394,49 +536,16 @@ class EdookitTimetableCard extends HTMLElement {
   }
 
   _ensureSubscribed() {
-    if (this._unsubscribe || this._subscribing || this._retryTimer !== null) return;
-    this._subscribe();
+    this._weekFeed.ensure();
+    if (this._config && this._config.show_homework === true) {
+      this._homeworkFeed.ensure();
+    } else {
+      this._homeworkFeed.teardown();
+      this._homework = null;
+    }
   }
 
-  _subscribe() {
-    if (!this._connected || !this._hass || !this._config) return;
-    if (this._unsubscribe || this._subscribing) return;
-    const generation = ++this._generation;
-    this._subscribing = true;
-    let pending;
-    try {
-      pending = this._hass.connection.subscribeMessage(
-        (event) => this._onEvent(generation, event),
-        { type: "edookit/week/subscribe", entity_id: this._config.entity },
-        { resubscribe: false },
-      );
-    } catch (err) {
-      pending = Promise.reject(err);
-    }
-    Promise.resolve(pending).then(
-      (unsubscribe) => {
-        if (generation !== this._generation) {
-          this._safeCall(unsubscribe);
-          return;
-        }
-        this._subscribing = false;
-        this._unsubscribe = unsubscribe;
-      },
-      () => {
-        if (generation !== this._generation) return;
-        this._subscribing = false;
-        this._scheduleRetry();
-      },
-    );
-  }
-
-  _onEvent(generation, event) {
-    if (generation !== this._generation || !event) return;
-    if (event.unloaded) {
-      this._teardown();
-      this._scheduleRetry();
-      return;
-    }
+  _onWeek(event) {
     if (!Array.isArray(event.weeks)) return;
     if (event.today !== this._lastToday) {
       this._lastToday = event.today;
@@ -446,42 +555,28 @@ class EdookitTimetableCard extends HTMLElement {
     this._render();
   }
 
-  _scheduleRetry() {
-    if (this._retryTimer !== null) clearTimeout(this._retryTimer);
-    this._retryTimer = setTimeout(() => {
-      this._retryTimer = null;
-      this._subscribe();
-    }, RETRY_MS);
+  _onHomework(event) {
+    if (!Array.isArray(event.homework)) return;
+    this._homework = event;
     this._render();
   }
 
   _teardown() {
-    this._generation++;
-    if (this._retryTimer !== null) {
-      clearTimeout(this._retryTimer);
-      this._retryTimer = null;
-    }
-    const unsubscribe = this._unsubscribe;
-    this._unsubscribe = null;
-    this._subscribing = false;
-    if (unsubscribe) this._safeCall(unsubscribe);
+    this._weekFeed.teardown();
+    this._homeworkFeed.teardown();
   }
 
-  _safeCall(unsubscribe) {
-    try {
-      Promise.resolve(unsubscribe()).catch(() => {});
-    } catch (err) {
-      // The server forgets the subscription on its own when it unloads.
-    }
-  }
-
-  // Glow marks the lesson in progress, so it re-checks the clock at the start
-  // of every minute instead of waiting for the next timetable push.
+  // Glow marks the lesson in progress and a homework marker drops off after its
+  // overdue window, so the card re-checks the clock at the start of every minute
+  // instead of waiting for the next push.
   _scheduleClock() {
     this._stopClock();
-    if (!this._connected || !this._config || this._config.style !== "glow") return;
+    if (!this._connected || !this._config) return;
+    const homework = this._config.show_homework === true;
+    if (this._config.style !== "glow" && !homework) return;
     this._clockTimer = setTimeout(() => {
-      this._markNow();
+      if (homework && this._homeworkKey() !== this._shownHomework) this._render();
+      else this._markNow();
       this._scheduleClock();
     }, MINUTE_MS - (Date.now() % MINUTE_MS) + 50);
   }
@@ -505,6 +600,70 @@ class EdookitTimetableCard extends HTMLElement {
     return PRAGUE_CLOCK.format(new Date());
   }
 
+  _nowMs() {
+    return Date.now();
+  }
+
+  _visibleHomework() {
+    if (
+      !this._config ||
+      this._config.show_homework !== true ||
+      !this._homework ||
+      !this._homework.available
+    ) {
+      return [];
+    }
+    const now = this._nowMs();
+    const keep = this._config.homework_overdue_days * DAY_MS;
+    const visible = [];
+    this._homework.homework.forEach((item) => {
+      const due = parseDue(item.due);
+      if (item.done || !item.code || due === null || now >= due + keep) return;
+      visible.push({
+        item,
+        overdue: now >= due,
+        day: pragueDate(due),
+        time: PRAGUE_CLOCK.format(due),
+      });
+    });
+    return visible;
+  }
+
+  _homeworkKey(entries = this._visibleHomework()) {
+    return entries.map((entry) => `${entry.item.id}${entry.overdue ? "!" : ""}`).join(",");
+  }
+
+  _homeworkByDay(entries) {
+    const byDay = new Map();
+    entries.forEach((entry) => {
+      if (!byDay.has(entry.day)) byDay.set(entry.day, []);
+      byDay.get(entry.day).push(entry);
+    });
+    return byDay;
+  }
+
+  // The last lesson starting at or before the deadline is the one the work is
+  // due at; a deadline earlier than every lesson that day has no such lesson, so
+  // the first one gets the dot.
+  _homeworkOf(byDay, day, lessons) {
+    const matched = new Map();
+    (byDay.get(day) || []).forEach((entry) => {
+      const same = lessons
+        .filter(
+          (lesson) =>
+            !lesson.replaced_by &&
+            lesson.code === entry.item.code &&
+            lesson.group === entry.item.group,
+        )
+        .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+      if (!same.length) return;
+      const target = same.filter((lesson) => lesson.start <= entry.time).pop() || same[0];
+      if (!matched.has(target)) matched.set(target, []);
+      matched.get(target).push(entry);
+    });
+    return matched;
+  }
+
   _render() {
     this._language = this._resolveLanguage();
     const t = STRINGS[this._language];
@@ -512,13 +671,16 @@ class EdookitTimetableCard extends HTMLElement {
     this._card.className = `style-${style}`;
     this._body.className = `card style-${style}`;
     this._timed = [];
+    const entries = this._visibleHomework();
+    this._shownHomework = this._homeworkKey(entries);
+    const homeworkByDay = this._homeworkByDay(entries);
     this._body.replaceChildren();
 
     const showHeader = !this._config || this._config.show_header !== false;
     const index = showHeader || !this._payload ? this._week : defaultWeek(this._payload);
     const week = this._payload && this._payload.weeks[index];
     if (!week) {
-      const unavailable = this._retryTimer !== null;
+      const unavailable = this._weekFeed.retrying;
       this._body.append(h("div", "status", unavailable ? t.unavailable : t.loading));
       return;
     }
@@ -530,9 +692,9 @@ class EdookitTimetableCard extends HTMLElement {
       this._body.append(h("div", "status", t.notLoaded));
       return;
     }
-    this._body.append(this._renderGrid(week, t));
+    this._body.append(this._renderGrid(week, t, homeworkByDay));
     this._markNow();
-    if (this._retryTimer !== null) this._body.append(h("div", "status", t.unavailable));
+    if (this._weekFeed.retrying) this._body.append(h("div", "status", t.unavailable));
   }
 
   _name() {
@@ -567,7 +729,7 @@ class EdookitTimetableCard extends HTMLElement {
 
   // Every tile is placed with explicit grid-row/grid-column so that spanning
   // event tiles can be added to a day row without touching the lessons.
-  _renderGrid(week, t) {
+  _renderGrid(week, t, homeworkByDay) {
     const grid = h("div", "grid");
     const showPeriods = this._config.show_periods !== false;
     const showDays = this._config.show_days !== false;
@@ -623,6 +785,7 @@ class EdookitTimetableCard extends HTMLElement {
       };
       const eventTile = (event, edge) => this._renderEvent(event, day.date, index, t, edge);
 
+      const homework = this._homeworkOf(homeworkByDay, day.date, day.lessons);
       const byColumn = new Map();
       day.lessons.forEach((lesson) => {
         if (lesson.replaced_by) return;
@@ -634,7 +797,7 @@ class EdookitTimetableCard extends HTMLElement {
       byColumn.forEach((lessons, column) => {
         place(
           String(column),
-          lessons.map((lesson) => this._renderLesson(lesson, day.date, index, t)),
+          lessons.map((lesson) => this._renderLesson(lesson, day.date, index, t, homework.get(lesson))),
         );
       });
 
@@ -675,7 +838,7 @@ class EdookitTimetableCard extends HTMLElement {
     return grid;
   }
 
-  _renderLesson(lesson, date, dayIndex, t) {
+  _renderLesson(lesson, date, dayIndex, t, homework = []) {
     const classes = ["lesson"];
     const text = lesson.code || lesson.subject || "";
     if (!lesson.code && text.length > 6) classes.push("long");
@@ -691,6 +854,9 @@ class EdookitTimetableCard extends HTMLElement {
     }
     tile.append(h("div", "code", text));
     if (showRoom && lesson.room) tile.append(h("div", "room", lesson.room));
+    if (homework.length) {
+      tile.append(h("span", homework.some((entry) => entry.overdue) ? "hw overdue" : "hw"));
+    }
     const times = `${clockLabel(lesson.start)}–${clockLabel(lesson.end)}`;
     tile.title = [lesson.subject, times, lesson.teacher].filter(Boolean).join(" · ");
     tile.addEventListener("click", () =>
@@ -701,6 +867,7 @@ class EdookitTimetableCard extends HTMLElement {
           [t.teacher, [lesson.teacher]],
           [t.room, [lesson.room]],
           [t.topic, [lesson.note]],
+          [t.homework, homework.map((entry) => t.homeworkLine(entry.item.text || entry.item.title, entry.time))],
         ],
         t,
       }),
@@ -809,6 +976,8 @@ const EDITOR_STRINGS = {
       show_periods: "Čísla a začátky hodin",
       show_days: "Dny v týdnu",
       show_room: "Učebna na dlaždici",
+      show_homework: "Domácí úkoly na dlaždici",
+      homework_overdue_days: "Dny po termínu",
     },
     helpers: {
       title: "Třeba jméno dítěte, když máte víc rozvrhů.",
@@ -827,6 +996,8 @@ const EDITOR_STRINGS = {
       show_periods: "Period numbers and start times",
       show_days: "Weekdays",
       show_room: "Room on the tiles",
+      show_homework: "Homework on the tiles",
+      homework_overdue_days: "Days kept after deadline",
     },
     helpers: {
       title: "For example the child's name, when you have more than one timetable.",
@@ -859,10 +1030,15 @@ function editorSchema(t, entities) {
     {
       type: "grid",
       name: "",
-      schema: ["show_header", "show_periods", "show_days", "show_room"].map((name) => ({
+      schema: ["show_header", "show_periods", "show_days", "show_room", "show_homework"].map((name) => ({
         name,
         selector: { boolean: {} },
       })),
+    },
+    {
+      type: "grid",
+      name: "",
+      schema: [{ name: "homework_overdue_days", selector: { number: { min: 0, mode: "box" } } }],
     },
   ];
 }

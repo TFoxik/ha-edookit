@@ -29,10 +29,16 @@ Each account gets one **Edookit {school}** device:
 | Payments due (sensor) | amount still to pay, in CZK | `paid`, `overpaid`, `unpaid_requests` |
 | Unread messages (sensor) | unread messages in Schránka | |
 | Latest grade (sensor) | the newest grade's mark; unknown before the term's first grade | |
+| Homework (sensor) | open assignments whose deadline is still ahead | |
 
 Entity IDs look like `sensor.edookit_<school>_next_lesson`. The event fires
 for lessons that become cancelled or changed while Home Assistant is
 running.
+
+The *Homework* count refreshes every 3 hours, so an assignment can stay in it
+for up to 3 hours after its deadline has passed. It has no attributes: the
+texts, subjects and teachers are read by the [Homework card](#homework-card)
+and the timetable card, not stored in the entity.
 
 ## Weekly timetable card
 
@@ -43,8 +49,9 @@ drawn as one tile over those periods (a trip over periods 3-4), and an
 all-day event such as "Ředitelské volno" fills the whole day. An event before
 or after school (an evening meeting for parents) gets its own column right
 next to the lessons; periods no lesson uses that week are left out on that
-side. Tap a tile for the details: teacher, room and "Učivo" for a lesson;
-time, the lessons it replaces and the description for an event. The details
+side. Tap a tile for the details: teacher, room, "Učivo" and, with
+`show_homework`, the homework due that day for a lesson; time, the lessons it
+replaces and the description for an event. The details
 pop-up closes by itself after a minute, so a wall tablet is never left
 covered.
 
@@ -61,6 +68,8 @@ language: cs # optional
 style: glow # optional; classic (default) or glow
 show_room: false # optional
 show_header: false # optional
+show_homework: true # optional; default false
+homework_overdue_days: 2 # optional; default 2
 ```
 
 | Option | |
@@ -73,6 +82,8 @@ show_header: false # optional
 | `show_header` | `false` hides the date and the **This week** / **Next week** buttons, leaving just the grid. The card then always shows the automatic week: this week from Monday to Friday, next week from Saturday 00:00. Default `true`. |
 | `show_periods` | `false` hides the top row of period numbers and start times. Default `true`. |
 | `show_days` | `false` hides the first column of weekdays and dates; today's row is then marked with a faint band instead. Default `true`. |
+| `show_homework` | `true` puts a small dot in the corner of the lesson tile an assignment is due on, orange while the deadline is ahead and red once it has passed. The tile is the one for the assignment's course and group on the deadline's day: the last such lesson starting at or before the deadline time, otherwise the first. Tap the tile to read the assignment and its deadline. Assignments without a deadline, or whose course matches no lesson that day, get no dot. Default `false`. |
+| `homework_overdue_days` | How many days after its deadline an unfinished assignment keeps its dot (red). `0` removes it at the deadline. Default `2`. |
 
 Events use purple, the colour of the school events calendar. Change it with
 the `--edookit-event-color` CSS variable, for example in a theme or a
@@ -82,6 +93,10 @@ apply: `--edookit-now-color` for the lesson in progress (default amber,
 `--amber-color`), and `--edookit-glow-color` for today's day
 name and the selected week (default `--primary-color`). Glow needs no
 card-mod to drop the card background.
+
+The homework dot, and the homework card's deadline colours, use
+`--edookit-soon-color` for a deadline still ahead (default orange `#e65100`)
+and `--edookit-overdue-color` for one that has passed (default red `#e53935`).
 
 The card shows this week, Monday to Friday, and switches to next week from
 Saturday 00:00 (Europe/Prague). **This week** and **Next week** buttons let
@@ -186,9 +201,47 @@ max_grades: 5       # optional; grades in the latest view; default 5
 language: cs        # optional; default = your Home Assistant language
 ```
 
+## Homework card
+
+The assignments that are still open. Two views:
+
+- `list`: one row per assignment with the course code, the text, subject and
+  teacher, the deadline and a countdown. Rows are grouped under **Overdue**,
+  **Today**, **Tomorrow**, **This week**, **Later** and **No deadline**;
+  anything due today or tomorrow is orange and anything past its deadline red.
+  When there are more than `max_items`, the header shows how many are left
+  (**+2**); tap it to list them all and again to go back.
+- `compact`: one tile with the number of assignments (and how many of them
+  are overdue) and the nearest deadline. Tap it for a pop-up with the full
+  list; it closes with **Close**, Escape or a tap outside.
+
+An assignment stays on the card until it is done (100 % on the portal) or
+until `keep_overdue_days` have passed since its deadline; one without a
+deadline stays until it is done. The portal may move an overdue assignment to
+its archive sooner, and then it disappears from the card too.
+
+The integration is read-only: nothing on the card marks homework done. Do
+that on the portal.
+
+Add it from **Add card** → **Edookit homework** and set it up in the visual
+editor, or in YAML:
+
+```yaml
+type: custom:edookit-homework-card
+entity: sensor.edookit_zs_example_homework
+view: list              # list or compact; default list
+max_items: 5            # list view; default 5; tap the header to see the rest
+keep_overdue_days: 2    # days an unfinished assignment stays after its deadline; default 2
+show_header: true       # default true
+show_teacher: true      # default true
+group_by_due: true      # list view; group under Today, Tomorrow, ...; default true
+show_countdown: true    # "tomorrow", "in 3 days", "overdue"; default true
+language: cs            # optional; default = your Home Assistant language
+```
+
 ## Text size
 
-All three cards share one text scale, so they look alike next to each other:
+All four cards share one text scale, so they look alike next to each other:
 titles 16px, text 14px, secondary text 12px, and nothing smaller than 11px.
 The subject codes on timetable tiles and the big mark on the grades card are
 sized to fit their boxes and stay as they are.
@@ -227,10 +280,12 @@ manual install, copy `custom_components/edookit` into your
 ## How it updates
 
 - The timetable and the message list update every 30 minutes; events,
-  payments and grades every 3 hours. A message's full text is fetched only when you
-  open it on the card.
-  If only the events, payments or grades pages fail, only those entities
-  become unavailable.
+  payments, grades and homework every 3 hours. A message's full text is
+  fetched only when you open it on the card. The homework card re-checks its
+  deadlines every minute, so an assignment leaves it on time without waiting
+  for the next refresh.
+  If only the events, payments, grades or homework pages fail, only those
+  entities become unavailable.
 - The portal session is renewed silently using the Plus4U sign-in, which is
   set for 30 days. A renewal that fails, for example during a Plus4U or
   portal outage, is retried on the next update; Home Assistant asks you to
@@ -276,9 +331,11 @@ actions:
 
 ## Limitations
 
-- **Supported:** timetable, school events, payments, messages and grades.
-  Behaviour notes, homework, tests and consents are not; attendance only as a
+- **Supported:** timetable, school events, payments, messages, grades and
+  homework. Behaviour notes, tests and consents are not; attendance only as a
   percentage per subject on the grades card.
+- **Homework is read-only and open items only:** it can't be marked done from
+  Home Assistant, and finished or archived assignments are not shown.
 - **Next week is a copy of this week:** the portal's next-week navigation
   hasn't been worked out, so the card projects it (see
   [Weekly timetable card](#weekly-timetable-card)). Schools that alternate
@@ -298,6 +355,8 @@ actions:
   history. Message subjects and text are never stored in entity states or
   attributes; the card fetches them on demand. The *Latest grade* sensor
   holds only the mark: topics, subjects and teachers stay out of the history.
+  The *Homework* sensor holds only a count; the cards fetch the assignments
+  on demand.
 - Diagnostics redact the session and the school.
 
 ## Troubleshooting
@@ -340,7 +399,8 @@ pytest && ruff check . && mypy custom_components
 `scripts/dev-ha.sh start` runs a local Home Assistant with the integration
 loaded from the working copy and the local pyedookit. It also sets
 `EDOOKIT_CAPTURE_PAGES=1`, which turns on page capture: once a day the
-homework, tests and consents pages, which have no parser yet, are fetched, and
+homework, tests and consents pages are fetched (homework only to catch new
+markup states, since it already has a parser; the other two have none), and
 when their content changes the page is saved to `config/edookit_captures/` and
 a notification appears. Those files are real markup to build parsers from;
 they contain personal data. The switch is not offered to users.

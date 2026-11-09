@@ -14,6 +14,7 @@ CARD_FILES = (
     "edookit-timetable-card.js",
     "edookit-messages-card.js",
     "edookit-grades-card.js",
+    "edookit-homework-card.js",
 )
 
 
