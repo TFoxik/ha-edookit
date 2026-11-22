@@ -1,5 +1,6 @@
 // Renders the homework card against the fake DOM and prints its shadow tree.
 // Input on stdin: {"config": {...}, "language": "cs", "now": epoch ms, "events": [payload, ...],
+// "exam_events": [payload, ...] (pushed to edookit/exams/subscribe; events go to homework),
 // "clicks": ["click:<class>" | "key:<class>:<key>", ...], "advance_ms": n, "disconnect": bool}.
 // With advance_ms the output also says whether the timer rebuilt the card body.
 // Text set through textContent is printed as a #text child, as the browser makes it.
@@ -23,7 +24,7 @@ async function main() {
   let now = input.now;
   card._clock = () => now;
   const calls = [];
-  let push = null;
+  const pushes = {};
   const hass = {
     states: {},
     locale: { language: input.language || "cs" },
@@ -31,7 +32,7 @@ async function main() {
     connection: {
       subscribeMessage: (callback, msg) => {
         calls.push(msg);
-        push = callback;
+        pushes[msg.type] = callback;
         return Promise.resolve(() => {});
       },
       addEventListener() {},
@@ -49,7 +50,9 @@ async function main() {
   if (error === null) {
     card.connectedCallback();
     card.hass = hass;
-    (input.events || []).forEach((event) => push(event));
+    const push = (type, events) => (events || []).forEach((event) => pushes[type] && pushes[type](event));
+    push("edookit/homework/subscribe", input.events);
+    push("edookit/exams/subscribe", input.exam_events);
     scheduled = delays();
     for (const spec of input.clicks || []) {
       const [kind, cls, key] = spec.split(":");

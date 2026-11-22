@@ -4,7 +4,10 @@ const RETRY_MS = 30000;
 const MINUTE_MS = 60000;
 const DAY_MS = 86400000;
 const VIEWS = ["list", "compact"];
+const SHOWS = ["homework", "exams", "both"];
+const KINDS = ["homework", "exams"];
 const DEFAULTS = {
+  show: "homework",
   view: "list",
   max_items: 5,
   keep_overdue_days: 2,
@@ -28,7 +31,17 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 const STRINGS = {
   cs: {
-    title: "Domácí úkoly",
+    titles: { homework: "Domácí úkoly", exams: "Písemky", both: "Úkoly a písemky" },
+    empties: {
+      homework: "Žádné úkoly",
+      exams: "Žádné písemky",
+      both: "Žádné úkoly ani písemky",
+    },
+    unavailables: {
+      homework: "Úkoly nejsou dostupné",
+      exams: "Písemky nejsou dostupné",
+      both: "Úkoly ani písemky nejsou dostupné",
+    },
     groups: {
       overdue: "Po termínu",
       today: "Dnes",
@@ -45,18 +58,24 @@ const STRINGS = {
     },
     weekdays: ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"],
     deadline: (weekday, day, month, time) => `${weekday} ${day}. ${month}. ${time}`,
-    empty: "Žádné úkoly",
-    unavailable: "Úkoly nejsou dostupné",
+    examTime: (weekday, day, month, start, end) => `${weekday} ${day}. ${month}. ${start}–${end}`,
     loading: "Načítám…",
     showMore: (n) => `Zobrazit dalších ${n} úkolů`,
     showLess: "Zobrazit méně úkolů",
     count: (n) => `${n} ${n === 1 ? "úkol" : n <= 4 ? "úkoly" : "úkolů"}`,
     overdueCount: (n) => ` · ${n} po termínu`,
+    examsCount: (n) => `${n} ${n === 1 ? "písemka" : n <= 4 ? "písemky" : "písemek"}`,
     nearest: (short, deadline) => `Nejbližší: ${short} · ${deadline}`,
     close: "Zavřít",
   },
   en: {
-    title: "Homework",
+    titles: { homework: "Homework", exams: "Exams", both: "Homework and exams" },
+    empties: { homework: "No homework", exams: "No exams", both: "No homework or exams" },
+    unavailables: {
+      homework: "Homework unavailable",
+      exams: "Exams aren't available",
+      both: "Homework and exams unavailable",
+    },
     groups: {
       overdue: "Overdue",
       today: "Today",
@@ -73,13 +92,14 @@ const STRINGS = {
     },
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     deadline: (weekday, day, month, time) => `${weekday} ${day} ${MONTHS[month - 1]} ${time}`,
-    empty: "No homework",
-    unavailable: "Homework unavailable",
+    examTime: (weekday, day, month, start, end) =>
+      `${weekday} ${day} ${MONTHS[month - 1]} ${start}–${end}`,
     loading: "Loading…",
     showMore: (n) => `Show ${n} more`,
     showLess: "Show fewer",
     count: (n) => `${n} ${n === 1 ? "assignment" : "assignments"}`,
     overdueCount: (n) => ` · ${n} overdue`,
+    examsCount: (n) => `${n} ${n === 1 ? "exam" : "exams"}`,
     nearest: (short, deadline) => `Next: ${short} · ${deadline}`,
     close: "Close",
   },
@@ -117,6 +137,10 @@ const STYLE = `
   .due { flex: none; text-align: right; font-size: var(--t-meta);
     color: var(--secondary-text-color); }
   .countdown { display: block; font-weight: 600; }
+  .row.exam .due { align-self: flex-start; }
+  .kind { display: inline-block; margin-top: 2px; padding: 0 6px; border-radius: 999px;
+    font-size: var(--t-min); line-height: 1.5; color: var(--secondary-text-color);
+    background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent); }
   .row.overdue .due, .row.overdue .short { color: var(--overdue); }
   .row.soon .due, .row.soon .short { color: var(--soon); }
   .tile { padding: 10px 12px; border-radius: 10px; cursor: pointer; outline: none;
@@ -206,10 +230,20 @@ function weekdayIndex(dayNumber) {
   return (dayNumber + 3) % 7;
 }
 
+function clockTime(ms) {
+  const { hour, minute } = pragueParts(ms);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 function deadlineLabel(t, ms) {
-  const { month, day, hour, minute } = pragueParts(ms);
-  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  return t.deadline(t.weekdays[weekdayIndex(pragueDay(ms))], day, month, time);
+  const { month, day } = pragueParts(ms);
+  return t.deadline(t.weekdays[weekdayIndex(pragueDay(ms))], day, month, clockTime(ms));
+}
+
+function examLabel(t, start, end) {
+  const { month, day } = pragueParts(start);
+  const weekday = t.weekdays[weekdayIndex(pragueDay(start))];
+  return t.examTime(weekday, day, month, clockTime(start), clockTime(end));
 }
 
 function parseDue(iso) {
@@ -232,6 +266,99 @@ function countdownLabel(t, { days, overdue }) {
   return days === 1 ? t.countdown.tomorrow : t.countdown.days(days);
 }
 
+function safeCall(unsubscribe) {
+  try {
+    Promise.resolve(unsubscribe()).catch(() => {});
+  } catch (err) {
+    // The server forgets the subscription on its own when it unloads.
+  }
+}
+
+class Feed {
+  constructor(card, type, onEvent) {
+    this._card = card;
+    this._type = type;
+    this._onEvent = onEvent;
+    this._unsubscribe = null;
+    this._subscribing = false;
+    this._retryTimer = null;
+    this._generation = 0;
+  }
+
+  get retrying() {
+    return this._retryTimer !== null;
+  }
+
+  ensure() {
+    if (this._unsubscribe || this._subscribing || this._retryTimer !== null) return;
+    this.subscribe();
+  }
+
+  subscribe() {
+    const card = this._card;
+    if (!card._connected || !card._hass || !card._config) return;
+    if (this._unsubscribe || this._subscribing) return;
+    const generation = ++this._generation;
+    this._subscribing = true;
+    let pending;
+    try {
+      pending = card._hass.connection.subscribeMessage(
+        (event) => this._receive(generation, event),
+        { type: this._type, entity_id: card._config.entity },
+        { resubscribe: false },
+      );
+    } catch (err) {
+      pending = Promise.reject(err);
+    }
+    Promise.resolve(pending).then(
+      (unsubscribe) => {
+        if (generation !== this._generation) {
+          safeCall(unsubscribe);
+          return;
+        }
+        this._subscribing = false;
+        this._unsubscribe = unsubscribe;
+      },
+      () => {
+        if (generation !== this._generation) return;
+        this._subscribing = false;
+        this._scheduleRetry();
+      },
+    );
+  }
+
+  _receive(generation, event) {
+    if (generation !== this._generation || !event) return;
+    if (event.unloaded) {
+      this.teardown();
+      this._scheduleRetry();
+      return;
+    }
+    this._onEvent(event);
+  }
+
+  _scheduleRetry() {
+    if (this._retryTimer !== null) clearTimeout(this._retryTimer);
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this.subscribe();
+    }, RETRY_MS);
+    this._card._render();
+  }
+
+  teardown() {
+    this._generation++;
+    if (this._retryTimer !== null) {
+      clearTimeout(this._retryTimer);
+      this._retryTimer = null;
+    }
+    const unsubscribe = this._unsubscribe;
+    this._unsubscribe = null;
+    this._subscribing = false;
+    if (unsubscribe) safeCall(unsubscribe);
+  }
+}
+
 class EdookitHomeworkCard extends HTMLElement {
   static getConfigElement() {
     return document.createElement(EDITOR_TAG);
@@ -249,19 +376,21 @@ class EdookitHomeworkCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = null;
     this._hass = null;
-    this._payload = null;
+    this._payloads = { homework: null, exams: null };
     this._connected = false;
-    this._unsubscribe = null;
-    this._subscribing = false;
-    this._retryTimer = null;
     this._tickTimer = null;
     this._shown = "";
-    this._generation = 0;
     this._connection = null;
-    this._onReady = () => {
-      this._teardown();
-      this._ensureSubscribed();
-    };
+    this._feeds = Object.fromEntries(
+      KINDS.map((kind) => [
+        kind,
+        new Feed(this, `edookit/${kind}/subscribe`, (event) => {
+          if (!Array.isArray(event[kind])) return;
+          this._payloads[kind] = event;
+          this._render();
+        }),
+      ]),
+    );
     this._language = null;
     this._expanded = false;
     this._overlay = null;
@@ -282,6 +411,9 @@ class EdookitHomeworkCard extends HTMLElement {
       throw new Error("The edookit-homework-card needs an entity");
     }
     checkFontSizes(config.font_sizes);
+    if (config.show !== undefined && !SHOWS.includes(config.show)) {
+      throw new Error(`show must be one of ${SHOWS.join(", ")}`);
+    }
     if (config.view !== undefined && !VIEWS.includes(config.view)) {
       throw new Error(`view must be one of ${VIEWS.join(", ")}`);
     }
@@ -298,7 +430,7 @@ class EdookitHomeworkCard extends HTMLElement {
     applyFontSizes(this, config.font_sizes);
     this._closePopup(false);
     if (entityChanged) {
-      this._payload = null;
+      this._payloads = { homework: null, exams: null };
       this._expanded = false;
       this._teardown();
     }
@@ -355,82 +487,24 @@ class EdookitHomeworkCard extends HTMLElement {
     return userLanguage(this._hass);
   }
 
+  _shows(kind) {
+    const show = this._config ? this._config.show : "homework";
+    return show === "both" || show === kind;
+  }
+
+  _kinds() {
+    return KINDS.filter((kind) => this._shows(kind));
+  }
+
   _ensureSubscribed() {
-    if (this._unsubscribe || this._subscribing || this._retryTimer !== null) return;
-    this._subscribe();
-  }
-
-  _subscribe() {
-    if (!this._connected || !this._hass || !this._config) return;
-    if (this._unsubscribe || this._subscribing) return;
-    const generation = ++this._generation;
-    this._subscribing = true;
-    let pending;
-    try {
-      pending = this._hass.connection.subscribeMessage(
-        (event) => this._onEvent(generation, event),
-        { type: "edookit/homework/subscribe", entity_id: this._config.entity },
-        { resubscribe: false },
-      );
-    } catch (err) {
-      pending = Promise.reject(err);
+    for (const kind of KINDS) {
+      if (this._shows(kind)) this._feeds[kind].ensure();
+      else this._feeds[kind].teardown();
     }
-    Promise.resolve(pending).then(
-      (unsubscribe) => {
-        if (generation !== this._generation) {
-          this._safeCall(unsubscribe);
-          return;
-        }
-        this._subscribing = false;
-        this._unsubscribe = unsubscribe;
-      },
-      () => {
-        if (generation !== this._generation) return;
-        this._subscribing = false;
-        this._scheduleRetry();
-      },
-    );
-  }
-
-  _onEvent(generation, event) {
-    if (generation !== this._generation || !event) return;
-    if (event.unloaded) {
-      this._teardown();
-      this._scheduleRetry();
-      return;
-    }
-    if (!Array.isArray(event.homework)) return;
-    this._payload = event;
-    this._render();
-  }
-
-  _scheduleRetry() {
-    if (this._retryTimer !== null) clearTimeout(this._retryTimer);
-    this._retryTimer = setTimeout(() => {
-      this._retryTimer = null;
-      this._subscribe();
-    }, RETRY_MS);
-    this._render();
   }
 
   _teardown() {
-    this._generation++;
-    if (this._retryTimer !== null) {
-      clearTimeout(this._retryTimer);
-      this._retryTimer = null;
-    }
-    const unsubscribe = this._unsubscribe;
-    this._unsubscribe = null;
-    this._subscribing = false;
-    if (unsubscribe) this._safeCall(unsubscribe);
-  }
-
-  _safeCall(unsubscribe) {
-    try {
-      Promise.resolve(unsubscribe()).catch(() => {});
-    } catch (err) {
-      // The server forgets the subscription on its own when it unloads.
-    }
+    KINDS.forEach((kind) => this._feeds[kind].teardown());
   }
 
   // Items drop off at their deadline plus keep_overdue_days, so the card
@@ -451,36 +525,74 @@ class EdookitHomeworkCard extends HTMLElement {
   }
 
   _entries(now) {
-    const payload = this._payload;
-    if (!payload || !payload.available) return null;
-    const keep = this._config.keep_overdue_days * DAY_MS;
+    const loaded = this._kinds().filter(
+      (kind) => this._payloads[kind] && this._payloads[kind].available,
+    );
+    if (!loaded.length) return null;
     const today = pragueDay(now);
     const entries = [];
-    payload.homework.forEach((item) => {
-      if (item.done) return;
-      const due = parseDue(item.due);
-      if (due !== null && now >= due + keep) return;
-      const overdue = due !== null && now >= due;
-      const days = due === null ? null : pragueDay(due) - today;
-      entries.push({ item, due, overdue, days, group: groupOf(overdue, days, today) });
-    });
+    if (loaded.includes("homework")) {
+      const keep = this._config.keep_overdue_days * DAY_MS;
+      this._payloads.homework.homework.forEach((item) => {
+        if (item.done) return;
+        const due = parseDue(item.due);
+        if (due !== null && now >= due + keep) return;
+        const overdue = due !== null && now >= due;
+        const days = due === null ? null : pragueDay(due) - today;
+        const group = groupOf(overdue, days, today);
+        entries.push({ kind: "homework", item, due, overdue, days, group });
+      });
+    }
+    if (loaded.includes("exams")) {
+      this._payloads.exams.exams.forEach((item) => {
+        const start = parseDue(item.start);
+        const end = parseDue(item.end);
+        if (start === null || end === null || now >= end) return;
+        const days = Math.max(pragueDay(start) - today, 0);
+        const group = groupOf(false, days, today);
+        entries.push({ kind: "exam", item, due: start, end, overdue: false, days, group });
+      });
+    }
     return entries.sort(
       (a, b) =>
-        (a.due === null) - (b.due === null) || (a.due || 0) - (b.due || 0) || a.item.id - b.item.id,
+        (a.due === null) - (b.due === null) ||
+        (a.due || 0) - (b.due || 0) ||
+        (a.kind === "exam" ? 0 : 1) - (b.kind === "exam" ? 0 : 1) ||
+        a.item.id - b.item.id,
     );
   }
 
   _signature(entries) {
     if (!entries) return "";
     return entries
-      .map(({ item, group, overdue, days }) => `${item.id}:${group}:${overdue}:${days}`)
+      .map(
+        ({ kind, item, group, overdue, days }) =>
+          `${kind}${item.id}:${group}:${overdue}:${days}`,
+      )
       .join(",");
   }
 
+  // With show: both, one source can fail while the other works; the list then
+  // says which one is missing instead of passing for "nothing to do".
+  _failedKinds() {
+    return this._kinds().filter((kind) => {
+      const payload = this._payloads[kind];
+      return payload ? !payload.available : this._feeds[kind].retrying;
+    });
+  }
+
   _fillContent(into, t, entries, loading, fill) {
-    if (entries === null) into.append(h("div", "status", loading ? t.loading : t.unavailable));
-    else if (!entries.length) into.append(h("div", "status", t.empty));
-    else fill(entries);
+    const show = this._config.show;
+    const failed = entries === null ? [] : this._failedKinds();
+    const working = failed.length ? this._kinds().find((kind) => !failed.includes(kind)) : show;
+    if (entries === null) {
+      into.append(h("div", "status", loading ? t.loading : t.unavailables[show]));
+    } else if (!entries.length) {
+      into.append(h("div", "status", t.empties[working]));
+    } else {
+      fill(entries);
+    }
+    failed.forEach((kind) => into.append(h("div", "status", t.unavailables[kind])));
   }
 
   _render() {
@@ -495,10 +607,12 @@ class EdookitHomeworkCard extends HTMLElement {
     const head = h("div", "head");
     const showHeader = this._config.show_header !== false;
     if (showHeader) {
-      head.append(h("span", "title", t.title));
+      head.append(h("span", "title", t.titles[this._config.show]));
       this._body.append(head);
     }
-    const loading = !this._payload && this._retryTimer === null;
+    const loading = this._kinds().some(
+      (kind) => !this._payloads[kind] && !this._feeds[kind].retrying,
+    );
     this._fillContent(this._body, t, entries, loading, (list) => {
       if (this._config.view === "compact") {
         this._body.append(this._compactTile(t, list));
@@ -514,8 +628,15 @@ class EdookitHomeworkCard extends HTMLElement {
   }
 
   _compactTile(t, entries) {
+    const exams = entries.filter((entry) => entry.kind === "exam").length;
+    const homework = entries.length - exams;
     const overdue = entries.filter((entry) => entry.overdue);
-    const total = t.count(entries.length) + (overdue.length ? t.overdueCount(overdue.length) : "");
+    const total = [
+      homework && t.count(homework) + (overdue.length ? t.overdueCount(overdue.length) : ""),
+      exams && t.examsCount(exams),
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const tile = activatable(h("div", "tile"), () => this._openPopup());
     tile.setAttribute("aria-haspopup", "dialog");
     this._tile = tile;
@@ -523,7 +644,9 @@ class EdookitHomeworkCard extends HTMLElement {
     const ahead = entries.find((entry) => entry.due !== null && !entry.overdue);
     const next = ahead || overdue[0];
     if (next) {
-      const label = t.nearest(next.item.short || NO_COURSE, deadlineLabel(t, next.due));
+      const short = next.item.short || NO_COURSE;
+      const marked = next.kind === "exam" ? `📝 ${short}` : short;
+      const label = t.nearest(marked, deadlineLabel(t, next.due));
       const late = !ahead;
       tile.append(
         h("div", late ? "nearest overdue" : "nearest", late ? `${label} · ${t.countdown.overdue}` : label),
@@ -547,12 +670,12 @@ class EdookitHomeworkCard extends HTMLElement {
     panel.tabIndex = -1;
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-modal", "true");
-    panel.setAttribute("aria-label", t.title);
+    panel.setAttribute("aria-label", t.titles[this._config.show]);
     const body = h("div");
     const close = h("button", "close", t.close);
     close.type = "button";
     close.addEventListener("click", () => this._closePopup());
-    panel.append(h("h4", "", t.title), body, close);
+    panel.append(h("h4", "", t.titles[this._config.show]), body, close);
     overlay.append(panel);
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) this._closePopup();
@@ -608,19 +731,24 @@ class EdookitHomeworkCard extends HTMLElement {
   }
 
   _row(t, entry) {
-    const { item, due, overdue, days } = entry;
+    const { kind, item, due, overdue, days } = entry;
+    const exam = kind === "exam";
     const soon = !overdue && days !== null && days <= 1;
-    const row = h("div", overdue ? "row overdue" : soon ? "row soon" : "row");
+    const state = overdue ? " overdue" : soon ? " soon" : "";
+    const row = h("div", `row${exam ? " exam" : ""}${state}`);
     row.setAttribute("data-id", String(item.id));
+    row.setAttribute("data-kind", kind);
     const main = h("div", "main");
-    main.append(h("div", "text", item.text || item.title));
+    main.append(h("div", "text", exam ? item.title : item.text || item.title));
     const meta = [item.subject, this._config.show_teacher ? item.teacher : null];
     const line = meta.filter(Boolean).join(" · ");
     if (line) main.append(h("div", "meta", line));
+    if (exam && item.kind) main.append(h("span", "kind", item.kind));
     row.append(h("span", "short", item.short || NO_COURSE), main);
     if (due !== null) {
       const when = h("div", "due");
-      when.append(h("span", "deadline", deadlineLabel(t, due)));
+      const label = exam ? examLabel(t, due, entry.end) : deadlineLabel(t, due);
+      when.append(h("span", "deadline", label));
       if (this._config.show_countdown) when.append(h("span", "countdown", countdownLabel(t, entry)));
       row.append(when);
     }
@@ -632,6 +760,7 @@ const EDITOR_STRINGS = {
   cs: {
     labels: {
       entity: "Domácí úkoly",
+      show: "Zobrazit",
       view: "Zobrazení",
       max_items: "Počet úkolů",
       keep_overdue_days: "Dny po termínu",
@@ -645,10 +774,12 @@ const EDITOR_STRINGS = {
       language: "Bez výběru se řídí jazykem Home Assistantu.",
     },
     views: { list: "Seznam", compact: "Kompaktní" },
+    shows: { homework: "Úkoly", exams: "Písemky", both: "Obojí" },
   },
   en: {
     labels: {
       entity: "Homework",
+      show: "Show",
       view: "View",
       max_items: "Items shown",
       keep_overdue_days: "Days kept after deadline",
@@ -662,6 +793,7 @@ const EDITOR_STRINGS = {
       language: "Leave empty to follow the Home Assistant language.",
     },
     views: { list: "List", compact: "Compact" },
+    shows: { homework: "Homework", exams: "Exams", both: "Both" },
   },
 };
 
@@ -673,6 +805,10 @@ function editorSchema(t, entities) {
       type: "grid",
       name: "",
       schema: [
+        {
+          name: "show",
+          selector: select(SHOWS.map((value) => ({ value, label: t.shows[value] }))),
+        },
         {
           name: "view",
           selector: select(VIEWS.map((value) => ({ value, label: t.views[value] }))),
