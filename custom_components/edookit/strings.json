@@ -68,6 +68,9 @@
       },
       "homework": {
         "name": "Homework"
+      },
+      "exams": {
+        "name": "Exams"
       }
     },
     "calendar": {

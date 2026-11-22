@@ -17,6 +17,7 @@ from .capture import PageCapture, capture_enabled
 from .const import CAPTURE_DIR, CAPTURE_INTERVAL, CONF_SESSION, DOMAIN
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry, EdookitRuntimeData
+from .exams_coordinator import EdookitExamsCoordinator
 from .frontend_card import async_register_card
 from .grades_coordinator import EdookitGradesCoordinator, async_remove_seen
 from .homework_coordinator import EdookitHomeworkCoordinator
@@ -58,6 +59,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
     await grades.async_refresh()
     homework = EdookitHomeworkCoordinator(hass, entry, session)
     await homework.async_refresh()
+    exams = EdookitExamsCoordinator(hass, entry, session)
+    await exams.async_refresh()
 
     entry.runtime_data = EdookitRuntimeData(
         timetable=timetable,
@@ -66,6 +69,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EdookitConfigEntry) -> b
         messages=messages,
         grades=grades,
         homework=homework,
+        exams=exams,
     )
     _feed_memory(entry, timetable, school, memory)
     if capture_enabled():

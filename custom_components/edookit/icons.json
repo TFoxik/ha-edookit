@@ -34,6 +34,9 @@
       },
       "homework": {
         "default": "mdi:book-open-variant"
+      },
+      "exams": {
+        "default": "mdi:clipboard-text-clock"
       }
     }
   }

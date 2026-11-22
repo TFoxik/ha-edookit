@@ -68,6 +68,9 @@
       },
       "homework": {
         "name": "Domácí úkoly"
+      },
+      "exams": {
+        "name": "Písemky"
       }
     },
     "calendar": {
