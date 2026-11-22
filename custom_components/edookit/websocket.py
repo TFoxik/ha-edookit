@@ -18,6 +18,7 @@ from pyedookit import PORTAL_TZ
 
 from .const import CONF_MESSAGES_ADMIN_ONLY, DOMAIN
 from .data import EdookitConfigEntry
+from .exams_payload import exams_payload
 from .grades_payload import grades_payload
 from .homework_payload import homework_payload
 from .messages_payload import message_payload, summary_payload
@@ -35,6 +36,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, _subscribe_grades)
     websocket_api.async_register_command(hass, _mark_grade_seen)
     websocket_api.async_register_command(hass, _subscribe_homework)
+    websocket_api.async_register_command(hass, _subscribe_exams)
 
 
 def _next_prague_midnight(now: datetime) -> datetime:
@@ -151,6 +153,25 @@ def _subscribe_homework(
         msg,
         lambda entry: entry.runtime_data.homework,
         lambda coordinator: homework_payload(coordinator.data),
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "edookit/exams/subscribe",
+        vol.Required("entity_id"): cv.entity_id,
+    }
+)
+@callback
+def _subscribe_exams(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    _subscribe_source(
+        hass,
+        connection,
+        msg,
+        lambda entry: entry.runtime_data.exams,
+        lambda coordinator: exams_payload(coordinator.data),
     )
 
 

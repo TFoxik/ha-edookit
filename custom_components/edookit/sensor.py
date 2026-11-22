@@ -5,14 +5,23 @@ from decimal import Decimal
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.util import dt as dt_util
 from pyedookit import Lesson
 
 from .coordinator import EdookitCoordinator
 from .data import EdookitConfigEntry
-from .entity_helpers import EdookitEntity, lesson_attributes, next_lesson, open_homework_count
+from .entity_helpers import (
+    EdookitEntity,
+    lesson_attributes,
+    next_exam_change,
+    next_lesson,
+    open_homework_count,
+    upcoming_exam_count,
+)
+from .exams_coordinator import EdookitExamsCoordinator
 from .grades_coordinator import EdookitGradesCoordinator
 from .homework_coordinator import EdookitHomeworkCoordinator
 from .messages_coordinator import EdookitMessagesCoordinator
@@ -34,6 +43,7 @@ async def async_setup_entry(
             EdookitUnreadMessagesSensor(runtime.messages, entry),
             EdookitLatestGradeSensor(runtime.grades, entry),
             EdookitHomeworkSensor(runtime.homework, entry),
+            EdookitExamsSensor(runtime.exams, entry),
         ]
     )
 
@@ -150,3 +160,51 @@ class EdookitHomeworkSensor(EdookitEntity[EdookitHomeworkCoordinator], SensorEnt
     @property
     def native_value(self) -> int | None:
         return open_homework_count(self.coordinator.data)
+
+
+class EdookitExamsSensor(EdookitEntity[EdookitExamsCoordinator], SensorEntity):
+    """How many exams that haven't ended start within the next 7 days. Titles,
+    subjects and teachers are left out: entity attributes end up in the
+    recorder's history."""
+
+    key = "exams"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    _unsub_change: CALLBACK_TYPE | None = None
+
+    @property
+    def native_value(self) -> int | None:
+        return upcoming_exam_count(self.coordinator.data, dt_util.now())
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._schedule_change()
+        self.async_on_remove(self._cancel_change)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._schedule_change()
+        super()._handle_coordinator_update()
+
+    # The coordinator polls every 3 hours; the count also changes when an
+    # exam ends or enters the 7-day window, so wake up at that moment.
+    @callback
+    def _schedule_change(self) -> None:
+        self._cancel_change()
+        moment = next_exam_change(self.coordinator.data, dt_util.now())
+        if moment is not None:
+            self._unsub_change = async_track_point_in_utc_time(
+                self.hass, self._on_change, dt_util.as_utc(moment)
+            )
+
+    @callback
+    def _on_change(self, _now: datetime) -> None:
+        self._unsub_change = None
+        self._schedule_change()
+        self.async_write_ha_state()
+
+    @callback
+    def _cancel_change(self) -> None:
+        if self._unsub_change is not None:
+            self._unsub_change()
+            self._unsub_change = None

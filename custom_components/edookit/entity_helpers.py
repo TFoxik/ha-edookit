@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
-from pyedookit import Homework, Lesson
+from pyedookit import Exam, Homework, Lesson
 
 from .const import CONF_SCHOOL, DOMAIN
 from .data import EdookitConfigEntry
@@ -66,6 +66,24 @@ def next_lesson(lessons: list[Lesson], now: datetime, *, skip_cancelled: bool) -
         ls for ls in lessons if (not skip_cancelled or not ls.is_cancelled) and ls.end >= now
     ]
     return min(candidates, key=lambda ls: ls.start, default=None)
+
+
+def upcoming_exam_count(exams: list[Exam] | None, now: datetime) -> int | None:
+    if exams is None:
+        return None
+    horizon = now + timedelta(days=7)
+    return sum(1 for exam in exams if exam.end > now and exam.start < horizon)
+
+
+def next_exam_change(exams: list[Exam] | None, now: datetime) -> datetime | None:
+    """When `upcoming_exam_count` next changes: an exam ends or enters the window."""
+    moments = [
+        moment
+        for exam in exams or []
+        for moment in (exam.end, exam.start - timedelta(days=7))
+        if moment > now
+    ]
+    return min(moments, default=None)
 
 
 def open_homework_count(items: list[Homework] | None) -> int | None:

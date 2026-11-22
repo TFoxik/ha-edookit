@@ -4,11 +4,12 @@ from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .capture import capture_enabled
 from .const import CONF_MESSAGES_ADMIN_ONLY, CONF_SCHOOL, CONF_SESSION
 from .data import EdookitConfigEntry
-from .entity_helpers import open_homework_count
+from .entity_helpers import open_homework_count, upcoming_exam_count
 
 TO_REDACT = {CONF_SESSION, CONF_SCHOOL}
 
@@ -34,4 +35,7 @@ async def async_get_config_entry_diagnostics(
         "homework_last_update_success": runtime.homework.last_update_success,
         "homework_count": len(runtime.homework.data or []),
         "homework_open_count": open_homework_count(runtime.homework.data) or 0,
+        "exams_last_update_success": runtime.exams.last_update_success,
+        "exams_count": len(runtime.exams.data or []),
+        "exams_upcoming_count": upcoming_exam_count(runtime.exams.data, dt_util.now()) or 0,
     }
