@@ -30,6 +30,7 @@ Each account gets one **Edookit {school}** device:
 | Unread messages (sensor) | unread messages in Schránka | |
 | Latest grade (sensor) | the newest grade's mark; unknown before the term's first grade | |
 | Homework (sensor) | open assignments whose deadline is still ahead | |
+| Exams (sensor) | tests that haven't ended and start within the next 7 days | |
 
 Entity IDs look like `sensor.edookit_<school>_next_lesson`. The event fires
 for lessons that become cancelled or changed while Home Assistant is
@@ -38,7 +39,8 @@ running.
 The *Homework* count refreshes every 3 hours, so an assignment can stay in it
 for up to 3 hours after its deadline has passed. It has no attributes: the
 texts, subjects and teachers are read by the [Homework card](#homework-card)
-and the timetable card, not stored in the entity.
+and the timetable card, not stored in the entity. The *Exams* count works the
+same way, from "Písemky, zkoušení", and has no attributes either.
 
 ## Weekly timetable card
 
@@ -203,7 +205,9 @@ language: cs        # optional; default = your Home Assistant language
 
 ## Homework card
 
-The assignments that are still open. Two views:
+The assignments that are still open, the upcoming tests ("Písemky,
+zkoušení"), or both in one list sorted by date: set `show` to `homework`
+(the default), `exams` or `both`. Two views:
 
 - `list`: one row per assignment with the course code, the text, subject and
   teacher, the deadline and a countdown. Rows are grouped under **Overdue**,
@@ -212,13 +216,19 @@ The assignments that are still open. Two views:
   When there are more than `max_items`, the header shows how many are left
   (**+2**); tap it to list them all and again to go back.
 - `compact`: one tile with the number of assignments (and how many of them
-  are overdue) and the nearest deadline. Tap it for a pop-up with the full
+  are overdue), the number of tests, and the nearest deadline or test, a test
+  marked 📝 ("3 úkoly · 1 po termínu · 2 písemky", "Nejbližší: 📝 M · So 7. 11.
+  08:00"). Tap it for a pop-up with the full
   list; it closes with **Close**, Escape or a tap outside.
 
 An assignment stays on the card until it is done (100 % on the portal) or
 until `keep_overdue_days` have passed since its deadline; one without a
 deadline stays until it is done. The portal may move an overdue assignment to
 its archive sooner, and then it disappears from the card too.
+
+A test row shows its title, subject and teacher, the day and time range, a
+countdown and the portal's label for it ("Malá písemka"). It stays on the card
+until the test has ended; tests are grouped by their day and never show as overdue.
 
 The integration is read-only: nothing on the card marks homework done. Do
 that on the portal.
@@ -229,6 +239,7 @@ editor, or in YAML:
 ```yaml
 type: custom:edookit-homework-card
 entity: sensor.edookit_zs_example_homework
+show: both              # homework, exams or both; default homework
 view: list              # list or compact; default list
 max_items: 5            # list view; default 5; tap the header to see the rest
 keep_overdue_days: 2    # days an unfinished assignment stays after its deadline; default 2
@@ -280,11 +291,11 @@ manual install, copy `custom_components/edookit` into your
 ## How it updates
 
 - The timetable and the message list update every 30 minutes; events,
-  payments, grades and homework every 3 hours. A message's full text is
+  payments, grades, homework and tests every 3 hours. A message's full text is
   fetched only when you open it on the card. The homework card re-checks its
   deadlines every minute, so an assignment leaves it on time without waiting
   for the next refresh.
-  If only the events, payments, grades or homework pages fail, only those
+  If only the events, payments, grades, homework or tests pages fail, only those
   entities become unavailable.
 - The portal session is renewed silently using the Plus4U sign-in, which is
   set for 30 days. A renewal that fails, for example during a Plus4U or
@@ -331,8 +342,8 @@ actions:
 
 ## Limitations
 
-- **Supported:** timetable, school events, payments, messages, grades and
-  homework. Behaviour notes, tests and consents are not; attendance only as a
+- **Supported:** timetable, school events, payments, messages, grades,
+  homework and tests. Behaviour notes and consents are not; attendance only as a
   percentage per subject on the grades card.
 - **Homework is read-only and open items only:** it can't be marked done from
   Home Assistant, and finished or archived assignments are not shown.
@@ -341,7 +352,9 @@ actions:
   [Weekly timetable card](#weekly-timetable-card)). Schools that alternate
   between an A and a B week would see the wrong lessons every other week.
 - **Not yet seen on a real portal:** cancelled or changed lessons, unpaid
-  payment requests, and term or non-numeric grades. The cancellation markers and event may not fire until
+  payment requests, term or non-numeric grades, and a listed test (tests are
+  read by the markup another account showed; only the archive keeps older
+  ones, and it isn't read). The cancellation markers and event may not fire until
   pyedookit has real examples. The payments total is still right, because it
   comes from the portal's own summary.
 - **Plus4U accounts only:** Google and local Edookit sign-ins aren't
@@ -355,8 +368,8 @@ actions:
   history. Message subjects and text are never stored in entity states or
   attributes; the card fetches them on demand. The *Latest grade* sensor
   holds only the mark: topics, subjects and teachers stay out of the history.
-  The *Homework* sensor holds only a count; the cards fetch the assignments
-  on demand.
+  The *Homework* and *Exams* sensors hold only a count; the cards fetch the
+  assignments and tests on demand.
 - Diagnostics redact the session and the school.
 
 ## Troubleshooting
@@ -399,8 +412,8 @@ pytest && ruff check . && mypy custom_components
 `scripts/dev-ha.sh start` runs a local Home Assistant with the integration
 loaded from the working copy and the local pyedookit. It also sets
 `EDOOKIT_CAPTURE_PAGES=1`, which turns on page capture: once a day the
-homework, tests and consents pages are fetched (homework only to catch new
-markup states, since it already has a parser; the other two have none), and
+homework, tests and consents pages are fetched (homework and tests only to
+catch new markup states, since they already have parsers; consents has none), and
 when their content changes the page is saved to `config/edookit_captures/` and
 a notification appears. Those files are real markup to build parsers from;
 they contain personal data. The switch is not offered to users.

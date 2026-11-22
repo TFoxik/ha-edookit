@@ -10,10 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pyedookit import PORTAL_TZ, Homework
+from pyedookit import PORTAL_TZ, Exam, Homework
 
+from custom_components.edookit.exams_payload import exams_payload
 from custom_components.edookit.homework_payload import homework_payload
 from tests.helpers import find, run_node, text
+from tests.test_exams import at as ex_at
+from tests.test_exams import exam
 from tests.test_homework import at, hw
 
 CARD_JS = (
@@ -29,6 +32,8 @@ def _render(
     items: list[Homework] | None = None,
     *,
     payload: dict[str, Any] | None = None,
+    exams: list[Exam] | None = None,
+    exam_payload: dict[str, Any] | None = None,
     language: str = "cs",
     now: int = NOW,
     advance_ms: int = 0,
@@ -43,6 +48,9 @@ def _render(
             "language": language,
             "now": now,
             "events": [payload if payload is not None else homework_payload(items or [])],
+            "exam_events": [
+                exam_payload if exam_payload is not None else exams_payload(exams or [])
+            ],
             "clicks": clicks or [],
             "advance_ms": advance_ms,
             "disconnect": disconnect,
@@ -394,3 +402,163 @@ def test_compact_empty() -> None:
 
     assert _texts(out, "status") == ["Žádné úkoly"]
     assert not find(out["tree"], _cls("tile"))
+
+
+def _types(out: dict[str, Any]) -> list[str]:
+    return [call["type"] for call in out["calls"]]
+
+
+def test_default_show_subscribes_only_to_homework() -> None:
+    assert _types(_render()) == ["edookit/homework/subscribe"]
+
+
+def test_show_exams_subscribes_only_to_exams() -> None:
+    out = _render({"show": "exams"})
+    assert out["calls"] == [{"type": "edookit/exams/subscribe", "entity_id": ENTITY}]
+
+
+def test_show_both_subscribes_to_both() -> None:
+    assert sorted(_types(_render({"show": "both"}))) == [
+        "edookit/exams/subscribe",
+        "edookit/homework/subscribe",
+    ]
+
+
+def test_rejects_bad_show_option() -> None:
+    assert _render({"show": "tests"})["error"] == "show must be one of homework, exams, both"
+
+
+def test_exam_row_content() -> None:
+    row = _rows(_render({"show": "exams"}, exams=[exam(9, ex_at(9))]))[0]
+
+    assert _in(row, "short") == ["M"]
+    assert _in(row, "text") == ["Zlomky"]
+    assert _in(row, "meta") == ["Matematika · Učitelka A"]
+    assert _in(row, "kind") == ["Malá písemka"]
+    assert _in(row, "deadline") == ["Po 9. 11. 08:00–08:45"]
+    assert _in(row, "countdown") == ["za 3 dny"]
+    quiet = _rows(_render({"show": "exams", "show_teacher": False}, exams=[exam(9, ex_at(9))]))
+    assert _in(quiet[0], "meta") == ["Matematika"]
+
+
+def test_exams_group_by_start_day() -> None:
+    exams = [exam(4, ex_at(12)), exam(3, ex_at(8)), exam(2, ex_at(7)), exam(1, ex_at(6, 14))]
+
+    out = _render({"show": "exams"}, exams=exams)
+
+    assert _texts(out, "group") == ["Dnes", "Zítra", "Tento týden", "Později"]
+    assert _ids(out) == [1, 2, 3, 4]
+
+
+def test_exam_drops_off_when_it_ends() -> None:
+    running = exam(1, ex_at(6, 11, 50))
+
+    assert _ids(_render({"show": "exams"}, exams=[running])) == [1]
+    later = _render({"show": "exams"}, exams=[running], advance_ms=40 * 60 * 1000)
+    assert _ids(later) == []
+
+
+def test_both_mixes_by_date_exam_first_on_ties() -> None:
+    out = _render({"show": "both"}, [hw(1, at(9, 8)), hw(3, at(7))], exams=[exam(2, ex_at(9, 8))])
+
+    assert _ids(out) == [3, 2, 1]
+    assert [r["attrs"]["data-kind"] for r in _rows(out)] == ["homework", "exam", "homework"]
+
+
+def test_both_with_exams_unavailable_still_shows_homework() -> None:
+    out = _render({"show": "both"}, [hw(1, at(11))], exam_payload=exams_payload(None))
+
+    assert _ids(out) == [1]
+    assert _texts(out, "status") == ["Písemky nejsou dostupné"]
+
+
+def test_exams_only_unavailable_status() -> None:
+    gone = exams_payload(None)
+    assert _texts(_render({"show": "exams"}, exam_payload=gone), "status") == [
+        "Písemky nejsou dostupné"
+    ]
+    english = _render({"show": "exams"}, exam_payload=gone, language="en")
+    assert _texts(english, "status") == ["Exams aren't available"]
+
+
+def test_exams_empty_status() -> None:
+    assert _texts(_render({"show": "exams"}), "status") == ["Žádné písemky"]
+    assert _texts(_render({"show": "both"}), "status") == ["Žádné úkoly ani písemky"]
+
+
+@pytest.mark.parametrize(
+    ("show", "cs", "en"),
+    [
+        ("homework", "Domácí úkoly", "Homework"),
+        ("exams", "Písemky", "Exams"),
+        ("both", "Úkoly a písemky", "Homework and exams"),
+    ],
+)
+def test_title_follows_show(show: str, cs: str, en: str) -> None:
+    assert _texts(_render({"show": show}), "title") == [cs]
+    assert _texts(_render({"show": show}, language="en"), "title") == [en]
+
+
+def test_exam_portal_text_is_rendered_as_text() -> None:
+    hostile = "<img src=x onerror=alert(1)>"
+    item = dataclasses.replace(
+        exam(1, ex_at(9)), title=hostile, subject=hostile, teacher=hostile, kind=hostile
+    )
+
+    out = _render({"show": "exams"}, exams=[item])
+
+    assert not find(out["tree"], lambda n: n["tag"] == "img")
+    assert _in(_rows(out)[0], "text") == [hostile]
+    assert _in(_rows(out)[0], "kind") == [hostile]
+
+
+def test_compact_both_counts_each_kind() -> None:
+    homework = [hw(1, at(11)), hw(2, at(5)), hw(3, at(12))]
+    exams = [exam(4, ex_at(9)), exam(5, ex_at(10))]
+
+    out = _render({"view": "compact", "show": "both"}, homework, exams=exams)
+
+    assert _texts(out, "total") == ["3 úkoly · 1 po termínu · 2 písemky"]
+    plain = _render({"view": "compact", "show": "both"}, homework[::2], exams=exams)
+    assert _texts(plain, "total") == ["2 úkoly · 2 písemky"]
+
+
+def test_compact_nearest_is_soonest_of_either_kind() -> None:
+    config = {"view": "compact", "show": "both"}
+
+    homework_first = _render(config, [hw(1, at(6, 18))], exams=[exam(2, ex_at(7))])
+    exam_first = _render(config, [hw(1, at(9))], exams=[exam(2, ex_at(7))])
+
+    assert _texts(homework_first, "nearest") == ["Nejbližší: Aj · Pá 6. 11. 18:00"]
+    assert _texts(exam_first, "nearest") == ["Nejbližší: 📝 M · So 7. 11. 08:00"]
+
+
+@pytest.mark.parametrize(
+    ("count", "cs", "en"),
+    [(1, "1 písemka", "1 exam"), (2, "2 písemky", "2 exams"), (5, "5 písemek", "5 exams")],
+)
+def test_compact_exam_plurals(count: int, cs: str, en: str) -> None:
+    exams = [exam(i, ex_at(9)) for i in range(1, count + 1)]
+    config = {"view": "compact", "show": "exams"}
+
+    assert _texts(_render(config, exams=exams), "total") == [cs]
+    assert _texts(_render(config, exams=exams, language="en"), "total") == [en]
+
+
+def test_compact_popup_lists_exams() -> None:
+    out = _render(
+        {"view": "compact", "show": "both"},
+        [hw(1, at(11))],
+        exams=[exam(2, ex_at(9))],
+        clicks=["click:tile"],
+    )
+
+    (dialog,) = _dialogs(out)
+    assert _ids_in(dialog) == [2, 1]
+    assert _in(dialog, "kind") == ["Malá písemka"]
+
+
+def test_both_with_homework_unavailable_and_no_exams_says_which_failed() -> None:
+    out = _render({"show": "both"}, payload=homework_payload(None))
+
+    assert _texts(out, "status") == ["Žádné písemky", "Úkoly nejsou dostupné"]

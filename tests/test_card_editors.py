@@ -192,6 +192,7 @@ def test_homework_editor_shows_defaults_for_options_left_out() -> None:
 
     assert shown["data"] == {
         "entity": HOMEWORK,
+        "show": "homework",
         "view": "list",
         "max_items": 8,
         "keep_overdue_days": 2,
@@ -202,6 +203,7 @@ def test_homework_editor_shows_defaults_for_options_left_out() -> None:
     }
     assert shown["fields"] == [
         "entity",
+        "show",
         "view",
         "max_items",
         "keep_overdue_days",
@@ -270,3 +272,18 @@ def test_homework_editor_labels_follow_language(
         show_header,
     ]
     assert [o["label"] for o in shown["options"]["view"]] == views
+
+
+@pytest.mark.parametrize(
+    ("language", "label", "options"),
+    [
+        ("cs", "Zobrazit", ["Úkoly", "Písemky", "Obojí"]),
+        ("en", "Show", ["Homework", "Exams", "Both"]),
+    ],
+)
+def test_homework_editor_offers_show_select(language: str, label: str, options: list[str]) -> None:
+    shown = _edit("homework", {"entity": HOMEWORK}, language=language)
+
+    assert shown["labels"]["show"] == label
+    assert [o["value"] for o in shown["options"]["show"]] == ["homework", "exams", "both"]
+    assert [o["label"] for o in shown["options"]["show"]] == options
