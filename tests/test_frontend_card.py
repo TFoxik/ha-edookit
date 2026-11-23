@@ -5,7 +5,7 @@ import hashlib
 import re
 import shutil
 import subprocess
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -104,11 +104,13 @@ def _render(
     events: list[SchoolEvent] | None = None,
     now: str | None = None,
     known: WeekLessons = this_week,
+    later: WeekLessons | None = None,
     homework: list[Homework] | None = None,
     tz: str | None = None,
     **extra: Any,
 ) -> dict[str, Any]:
-    payloads = [build_payload(day, [known], events or []) for day in days]
+    weeks = [known] if later is None else [known, later]
+    payloads = [build_payload(day, weeks, events or []) for day in days]
     return run_node(
         HARNESS_JS,
         {
@@ -210,25 +212,62 @@ EVENING = SchoolEvent("e5", "Uspávání", _at(17, 0, 12), _at(18, 0, 12))
 MORNING = SchoolEvent("e6", "Družina", _at(6, 0, 13), _at(7, 0, 13))
 
 
-def test_card_shows_every_school_period_when_nothing_is_outside_lessons() -> None:
+def _sixth_period_week() -> WeekLessons:
+    monday = this_week.monday + timedelta(weeks=1)
+    sixth = next(period for period in LONG_DAY.periods if period.number == 6)
+    lessons = [
+        dataclasses.replace(
+            lesson,
+            start=lesson.start + timedelta(weeks=1),
+            end=lesson.end + timedelta(weeks=1),
+        )
+        for lesson in this_week.lessons
+    ]
+    lessons.append(
+        dataclasses.replace(
+            lessons[0],
+            start=datetime.combine(monday, sixth.start, tzinfo=PORTAL_TZ),
+            end=datetime.combine(monday, sixth.end, tzinfo=PORTAL_TZ),
+        )
+    )
+    return WeekLessons(monday, lessons, LONG_DAY.periods)
+
+
+def test_card_shows_only_the_periods_the_week_uses() -> None:
     shown = _render({}, WEDNESDAY, known=LONG_DAY)
 
-    assert shown["periodHeads"] == 10
+    assert shown["periodHeads"] == 5
+    assert shown["columns"] == "auto repeat(5, minmax(0, 1fr))"
 
 
-def test_card_drops_unused_periods_between_lessons_and_an_after_school_event() -> None:
+def test_card_widens_to_a_later_week_that_uses_another_period() -> None:
+    config = {"show_header": False}
+    known = {"known": LONG_DAY, "later": _sixth_period_week()}
+
+    assert _render(config, WEDNESDAY, **known)["periodHeads"] == 5
+    assert _render(config, SATURDAY, **known)["periodHeads"] == 6
+
+
+def test_card_shows_every_period_of_a_week_without_lessons() -> None:
+    holiday = WeekLessons(this_week.monday + timedelta(weeks=1), [], LONG_DAY.periods)
+    shown = _render({"show_header": False}, SATURDAY, known=LONG_DAY, later=holiday)
+
+    assert shown["periodHeads"] == len(LONG_DAY.periods)
+
+
+def test_card_puts_an_after_school_event_next_to_the_last_lesson() -> None:
     shown = _render({}, WEDNESDAY, events=[EVENING], known=LONG_DAY)
 
-    assert shown["periodHeads"] == 6
-    assert shown["columns"].endswith("repeat(6, minmax(0, 1fr)) 4px minmax(56px, 1.4fr)")
-    assert ["2", "9"] in shown["cells"]
+    assert shown["periodHeads"] == 5
+    assert shown["columns"].endswith("repeat(5, minmax(0, 1fr)) 4px minmax(56px, 1.4fr)")
+    assert ["2", "8"] in shown["cells"]
 
 
-def test_card_drops_unused_periods_between_a_before_school_event_and_lessons() -> None:
+def test_card_puts_a_before_school_event_next_to_the_first_lesson() -> None:
     shown = _render({}, WEDNESDAY, events=[MORNING], known=LONG_DAY)
 
-    assert shown["periodHeads"] == 9
-    assert shown["columns"] == "auto minmax(56px, 1.4fr) 4px repeat(9, minmax(0, 1fr))"
+    assert shown["periodHeads"] == 5
+    assert shown["columns"] == "auto minmax(56px, 1.4fr) 4px repeat(5, minmax(0, 1fr))"
     assert ["3", "2"] in shown["cells"]
 
 
@@ -276,13 +315,6 @@ def test_card_in_school_hours_drops_events_before_and_after_school() -> None:
 
     assert sorted(shown["events"]) == IN_SCHOOL_TITLES
     assert shown["columns"] == f"auto repeat({len(this_week.periods)}, minmax(0, 1fr))"
-
-
-def test_card_in_school_hours_keeps_the_periods_an_edge_column_would_drop() -> None:
-    shown = _render({"show_events": "school_hours"}, WEDNESDAY, events=[EVENING], known=LONG_DAY)
-
-    assert shown["events"] == []
-    assert shown["periodHeads"] == 10
 
 
 def test_card_without_events_shows_the_lessons_alone() -> None:
