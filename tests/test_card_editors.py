@@ -70,6 +70,7 @@ def test_timetable_editor_shows_defaults_for_options_left_out() -> None:
         "show_room": True,
         "show_homework": False,
         "homework_overdue_days": 2,
+        "show_events": "all",
     }
     assert shown["fields"] == [
         "entity",
@@ -82,6 +83,7 @@ def test_timetable_editor_shows_defaults_for_options_left_out() -> None:
         "show_room",
         "show_homework",
         "homework_overdue_days",
+        "show_events",
     ]
 
 
@@ -108,6 +110,21 @@ def test_timetable_editor_homework_fields() -> None:
 def test_timetable_editor_homework_labels(language: str, homework: str, days: str) -> None:
     labels = _edit("timetable", {"entity": TIMETABLE}, language=language)["labels"]
     assert (labels["show_homework"], labels["homework_overdue_days"]) == (homework, days)
+
+
+@pytest.mark.parametrize(
+    ("language", "label", "options"),
+    [
+        ("cs", "Akce školy", ["Všechny", "Jen během vyučování", "Žádné"]),
+        ("en", "School events", ["All", "During school hours", "None"]),
+    ],
+)
+def test_timetable_editor_show_events_label(language: str, label: str, options: list[str]) -> None:
+    shown = _edit("timetable", {"entity": TIMETABLE}, language=language)
+
+    assert shown["labels"]["show_events"] == label
+    assert [o["value"] for o in shown["options"]["show_events"]] == ["all", "school_hours", "none"]
+    assert [o["label"] for o in shown["options"]["show_events"]] == options
 
 
 def test_messages_editor_shows_defaults_for_options_left_out() -> None:

@@ -127,6 +127,7 @@ async function main() {
       columns: grids.length ? grids[0].style.gridTemplateColumns : null,
       rows: grids.length ? grids[0].style.gridTemplateRows : null,
       todayRows: root.findAll(hasClass("today-row")).map((band) => band.style.gridRow),
+      events: root.findAll(hasClass("etitle")).map((node) => node.textContent),
       cells: root.findAll(hasClass("cell")).map((cell) => [cell.style.gridRow, cell.style.gridColumn]),
       cardClass: root.findAll(hasClass("card"))[0].className,
       haCardClass: root.children.find((node) => node.tagName === "ha-card").className,

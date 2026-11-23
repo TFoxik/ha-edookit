@@ -72,6 +72,7 @@ show_room: false # optional
 show_header: false # optional
 show_homework: true # optional; default false
 homework_overdue_days: 2 # optional; default 2
+show_events: school_hours # optional; all (default), school_hours or none
 ```
 
 | Option | |
@@ -86,6 +87,7 @@ homework_overdue_days: 2 # optional; default 2
 | `show_days` | `false` hides the first column of weekdays and dates; today's row is then marked with a faint band instead. Default `true`. |
 | `show_homework` | `true` puts a small dot in the corner of the lesson tile an assignment is due on, orange while the deadline is ahead and red once it has passed. The tile is the one for the assignment's course and group on the deadline's day: the last such lesson starting at or before the deadline time, otherwise the first. Tap the tile to read the assignment and its deadline. Assignments without a deadline, or whose course matches no lesson that day, get no dot. Default `false`. |
 | `homework_overdue_days` | How many days after its deadline an unfinished assignment keeps its dot (red). `0` removes it at the deadline. Default `2`. |
+| `show_events` | Which school events the card draws. `all` (default) draws every one. `school_hours` keeps the events during the lesson day (those drawn over periods) and all-day events, which stand in for the day's lessons (a trip, "Ředitelské volno"), and drops the events before and after school together with their extra columns; useful when a calendar card next to it already lists the school events calendar. `none` draws the lessons alone: no event tiles, no all-day row, no extra columns; the periods of lessons an event replaces stay empty, since those lessons are not taking place. |
 
 Events use purple, the colour of the school events calendar. Change it with
 the `--edookit-event-color` CSS variable, for example in a theme or a
