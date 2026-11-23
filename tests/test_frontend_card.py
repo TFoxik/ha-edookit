@@ -260,6 +260,55 @@ def test_card_can_show_the_lessons_alone() -> None:
     assert shown["cells"]
 
 
+EDGE_TITLES = ["Družina", "Kroužek"]
+IN_SCHOOL_TITLES = ["1.B Můj velký kamarád", "Ředitelské volno"]
+
+
+def test_card_shows_every_event_by_default() -> None:
+    shown = _render({}, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert sorted(shown["events"]) == sorted(EDGE_TITLES + IN_SCHOOL_TITLES)
+    assert _render({"show_events": "all"}, WEDNESDAY, events=EVERY_PLACEMENT) == shown
+
+
+def test_card_in_school_hours_drops_events_before_and_after_school() -> None:
+    shown = _render({"show_events": "school_hours"}, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert sorted(shown["events"]) == IN_SCHOOL_TITLES
+    assert shown["columns"] == f"auto repeat({len(this_week.periods)}, minmax(0, 1fr))"
+
+
+def test_card_in_school_hours_keeps_the_periods_an_edge_column_would_drop() -> None:
+    shown = _render({"show_events": "school_hours"}, WEDNESDAY, events=[EVENING], known=LONG_DAY)
+
+    assert shown["events"] == []
+    assert shown["periodHeads"] == 10
+
+
+def test_card_without_events_shows_the_lessons_alone() -> None:
+    lessons = _render({}, WEDNESDAY)
+    shown = _render({"show_events": "none"}, WEDNESDAY, events=EVERY_PLACEMENT)
+
+    assert shown["events"] == []
+    assert shown["columns"] == lessons["columns"]
+    assert set(map(tuple, shown["cells"])) <= set(map(tuple, lessons["cells"]))
+
+
+def test_card_without_events_leaves_replaced_lessons_empty() -> None:
+    lessons = _render({}, WEDNESDAY)["cells"]
+    shown = _render({"show_events": "none"}, WEDNESDAY, events=[KAMARAD])["cells"]
+
+    replaced = {("5", "4"), ("5", "5")}
+    assert set(map(tuple, shown)) == set(map(tuple, lessons)) - replaced
+
+
+@pytest.mark.parametrize("bad", ["some", True, "School_hours"])
+def test_card_rejects_an_unknown_show_events(bad: Any) -> None:
+    shown = _render({"show_events": bad}, WEDNESDAY)
+
+    assert shown["error"] == "show_events must be one of all, school_hours, none"
+
+
 def test_card_without_days_marks_today_with_a_row_band() -> None:
     assert _render({"show_days": False}, WEDNESDAY)["todayRows"] == ["4"]
     assert _render({"show_days": False, "show_periods": False}, WEDNESDAY)["todayRows"] == ["3"]

@@ -7,6 +7,7 @@ const DAY_MS = 86400000;
 const EDGE_TRACK = "minmax(56px, 1.4fr)";
 const EDGE_GAP = "4px";
 const STYLES = ["classic", "glow"];
+const SHOW_EVENTS = ["all", "school_hours", "none"];
 const DEFAULTS = {
   style: "classic",
   show_header: true,
@@ -15,6 +16,7 @@ const DEFAULTS = {
   show_room: true,
   show_homework: false,
   homework_overdue_days: 2,
+  show_events: "all",
 };
 const PRAGUE_CLOCK = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Prague",
@@ -269,6 +271,13 @@ function clockLabel(hhmm) {
   return hhmm.replace(/^0/, "");
 }
 
+// All-day events count as school hours: they stand in for the lessons of the day.
+function shownEvents(events, mode) {
+  if (mode === "none") return [];
+  if (mode === "school_hours") return events.filter((event) => !event.edge);
+  return events;
+}
+
 // An event before or after school gets its own column, so the school's unused
 // periods on that side would only push it away from the lessons.
 function shownPeriods(week, hasBefore, hasAfter) {
@@ -466,6 +475,9 @@ class EdookitTimetableCard extends HTMLElement {
     const keep = config.homework_overdue_days;
     if (keep !== undefined && !(Number.isInteger(keep) && keep >= 0)) {
       throw new Error("homework_overdue_days must be a whole number, 0 or more");
+    }
+    if (config.show_events !== undefined && !SHOW_EVENTS.includes(config.show_events)) {
+      throw new Error(`show_events must be one of ${SHOW_EVENTS.join(", ")}`);
     }
     const entityChanged = this._config !== null && this._config.entity !== config.entity;
     this._config = { ...DEFAULTS, ...config, style };
@@ -729,7 +741,12 @@ class EdookitTimetableCard extends HTMLElement {
 
   // Every tile is placed with explicit grid-row/grid-column so that spanning
   // event tiles can be added to a day row without touching the lessons.
-  _renderGrid(week, t, homeworkByDay) {
+  _renderGrid(payloadWeek, t, homeworkByDay) {
+    const mode = this._config.show_events;
+    const week = {
+      ...payloadWeek,
+      days: payloadWeek.days.map((day) => ({ ...day, events: shownEvents(day.events, mode) })),
+    };
     const grid = h("div", "grid");
     const showPeriods = this._config.show_periods !== false;
     const showDays = this._config.show_days !== false;
@@ -978,13 +995,16 @@ const EDITOR_STRINGS = {
       show_room: "Učebna na dlaždici",
       show_homework: "Domácí úkoly na dlaždici",
       homework_overdue_days: "Dny po termínu",
+      show_events: "Akce školy",
     },
     helpers: {
       title: "Třeba jméno dítěte, když máte víc rozvrhů.",
       style: "Záře je pro tmavé dashboardy bez rámečků karet.",
       language: "Bez výběru se řídí jazykem Home Assistantu.",
+      show_events: "Celodenní akce zůstávají i v režimu „během vyučování“.",
     },
     styles: { classic: "Klasický", glow: "Záře" },
+    showEvents: { all: "Všechny", school_hours: "Jen během vyučování", none: "Žádné" },
   },
   en: {
     labels: {
@@ -998,13 +1018,16 @@ const EDITOR_STRINGS = {
       show_room: "Room on the tiles",
       show_homework: "Homework on the tiles",
       homework_overdue_days: "Days kept after deadline",
+      show_events: "School events",
     },
     helpers: {
       title: "For example the child's name, when you have more than one timetable.",
       style: "Glow is for dark dashboards without card boxes.",
       language: "Leave empty to follow the Home Assistant language.",
+      show_events: "All-day events stay with “during school hours”.",
     },
     styles: { classic: "Classic", glow: "Glow" },
+    showEvents: { all: "All", school_hours: "During school hours", none: "None" },
   },
 };
 
@@ -1038,7 +1061,13 @@ function editorSchema(t, entities) {
     {
       type: "grid",
       name: "",
-      schema: [{ name: "homework_overdue_days", selector: { number: { min: 0, mode: "box" } } }],
+      schema: [
+        { name: "homework_overdue_days", selector: { number: { min: 0, mode: "box" } } },
+        {
+          name: "show_events",
+          selector: select(SHOW_EVENTS.map((value) => ({ value, label: t.showEvents[value] }))),
+        },
+      ],
     },
   ];
 }
