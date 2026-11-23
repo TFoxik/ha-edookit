@@ -48,10 +48,11 @@ The integration ships a Lovelace card that shows the week the way the portal
 does: days down the side, lesson periods across the top, with the subject
 abbreviation and room in each tile. A school event that replaces lessons is
 drawn as one tile over those periods (a trip over periods 3-4), and an
-all-day event such as "Ředitelské volno" fills the whole day. An event before
-or after school (an evening meeting for parents) gets its own column right
-next to the lessons; periods no lesson uses that week are left out on that
-side. Tap a tile for the details: teacher, room, "Učivo" and, with
+all-day event such as "Ředitelské volno" fills the whole day. The columns run
+from the first to the last period with a lesson that week, so the school
+day's empty periods at either end are left out. An event before or after
+school (an evening meeting for parents) gets its own column right next to the
+lessons. Tap a tile for the details: teacher, room, "Učivo" and, with
 `show_homework`, the homework due that day for a lesson; time, the lessons it
 replaces and the description for an event. The details
 pop-up closes by itself after a minute, so a wall tablet is never left
@@ -87,7 +88,7 @@ show_events: school_hours # optional; all (default), school_hours or none
 | `show_days` | `false` hides the first column of weekdays and dates; today's row is then marked with a faint band instead. Default `true`. |
 | `show_homework` | `true` puts a small dot in the corner of the lesson tile an assignment is due on, orange while the deadline is ahead and red once it has passed. The tile is the one for the assignment's course and group on the deadline's day: the last such lesson starting at or before the deadline time, otherwise the first. Tap the tile to read the assignment and its deadline. Assignments without a deadline, or whose course matches no lesson that day, get no dot. Default `false`. |
 | `homework_overdue_days` | How many days after its deadline an unfinished assignment keeps its dot (red). `0` removes it at the deadline. Default `2`. |
-| `show_events` | Which school events the card draws. `all` (default) draws every one. `school_hours` keeps the events during the lesson day (those drawn over periods) and all-day events, which stand in for the day's lessons (a trip, "Ředitelské volno"), and drops the events before and after school together with their extra columns; useful when a calendar card next to it already lists the school events calendar. `none` draws the lessons alone: no event tiles, no all-day row, no extra columns; the periods of lessons an event replaces stay empty, since those lessons are not taking place. |
+| `show_events` | Which school events the card draws. `all` (default) draws every one. `school_hours` keeps the events during the lesson day (those drawn over periods) and all-day events, which stand in for the day's lessons (a trip, "Ředitelské volno"), and drops the events before and after school together with their extra columns. Useful when a calendar card next to it already lists the school events calendar. `none` draws the lessons alone: no event tiles, no all-day row, no extra columns; the periods of lessons an event replaces stay empty, since those lessons are not taking place. |
 
 Events use purple, the colour of the school events calendar. Change it with
 the `--edookit-event-color` CSS variable, for example in a theme or a

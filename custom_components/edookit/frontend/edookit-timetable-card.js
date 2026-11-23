@@ -278,9 +278,10 @@ function shownEvents(events, mode) {
   return events;
 }
 
-// An event before or after school gets its own column, so the school's unused
-// periods on that side would only push it away from the lessons.
-function shownPeriods(week, hasBefore, hasAfter) {
+// The school's day often has more periods than a child uses. Empty ones at either
+// end would only squeeze the lessons and push an event before or after school,
+// which gets its own column, away from them.
+function shownPeriods(week) {
   const used = week.days
     .flatMap((day) => [
       ...day.lessons.map((lesson) => lesson.period),
@@ -292,9 +293,7 @@ function shownPeriods(week, hasBefore, hasAfter) {
   if (!used.length) return week.periods;
   const first = Math.min(...used);
   const last = Math.max(...used);
-  return week.periods.filter(
-    (period) => (!hasBefore || period.number >= first) && (!hasAfter || period.number <= last),
-  );
+  return week.periods.filter((period) => period.number >= first && period.number <= last);
 }
 
 function parseDue(iso) {
@@ -753,7 +752,7 @@ class EdookitTimetableCard extends HTMLElement {
     const events = week.days.flatMap((day) => day.events);
     const hasBefore = events.some((event) => event.edge === "before");
     const hasAfter = events.some((event) => event.edge === "after");
-    const periods = shownPeriods(week, hasBefore, hasAfter);
+    const periods = shownPeriods(week);
     const tracks = showDays ? ["auto"] : [];
     const beforeColumn = tracks.length + 1;
     if (hasBefore) tracks.push(EDGE_TRACK, EDGE_GAP);
